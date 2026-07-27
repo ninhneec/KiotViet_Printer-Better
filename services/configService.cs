@@ -9,15 +9,17 @@ public class ConfigService
     public static ConfigService Instance => _instance ??= new ConfigService();
 
     private readonly string _configPath;
+    public string DataDirectory { get; }
+    public string TemplatesDirectory => Path.Combine(DataDirectory, "Templates");
 
     public AppConfig Config { get; private set; } = new();
 
     private ConfigService()
     {
-        _configPath = Path.Combine(
-            Application.StartupPath,
-            "Config",
-            "config.json");
+        DataDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "KiotVietPrinterBetter");
+        _configPath = Path.Combine(DataDirectory, "config.json");
 
         Load();
     }
@@ -33,7 +35,10 @@ public class ConfigService
 
             if (!File.Exists(_configPath))
             {
-                Config = CreateDefaultConfig();
+                string legacyPath = Path.Combine(Application.StartupPath, "Config", "config.json");
+                Config = File.Exists(legacyPath)
+                    ? JsonConvert.DeserializeObject<AppConfig>(File.ReadAllText(legacyPath)) ?? CreateDefaultConfig()
+                    : CreateDefaultConfig();
                 Save();
                 return;
             }
@@ -57,8 +62,19 @@ public class ConfigService
             if (Config.Labels.Count == 0)
             {
                 Config = CreateDefaultConfig();
-                Save();
             }
+
+            // Phiên bản Better chỉ dùng luồng in trực tiếp ba trường.
+            foreach (LabelDefinition label in Config.Labels)
+            {
+                label.HandlerType = "DIRECT_PRICE";
+                label.DataFilePath = "";
+                label.RequiresEmployeeCode = false;
+                label.UseBarcodeParser = false;
+                label.AppendEmployeeCode = false;
+            }
+
+            Save();
         }
         catch
         {
@@ -91,7 +107,23 @@ public class ConfigService
 
         return Config.Labels.Any(x =>
             !string.IsNullOrWhiteSpace(x.TemplatePath) &&
-            !string.IsNullOrWhiteSpace(x.DataFilePath));
+            File.Exists(x.TemplatePath));
+    }
+
+    public string StoreTemplate(string sourcePath, string labelCode)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+            return sourcePath;
+
+        Directory.CreateDirectory(TemplatesDirectory);
+        string safeCode = string.Concat((labelCode.Length == 0 ? "LABEL" : labelCode)
+            .Select(character => Path.GetInvalidFileNameChars().Contains(character) ? '_' : character));
+        string targetPath = Path.Combine(TemplatesDirectory, $"{safeCode}.btw");
+
+        if (!Path.GetFullPath(sourcePath).Equals(Path.GetFullPath(targetPath), StringComparison.OrdinalIgnoreCase))
+            File.Copy(sourcePath, targetPath, true);
+
+        return targetPath;
     }
 
     private AppConfig CreateDefaultConfig()
@@ -104,39 +136,18 @@ public class ConfigService
             AutoOpenLastFolder = true,
             RememberEmployee = true,
             DefaultEmployee = "",
-            Labels = new List<LabelDefinition>
-            {
+            Labels =
+            [
                 new LabelDefinition
                 {
-                    Code = "FULL",
-                    Name = "Tem đầy đủ",
-                    Description = "Tên + thuộc tính + mã vạch + giá",
-                    IconText = "🧾",
-                    IsEnabled = true,
-                    TemplatePath = "",
-                    DataFilePath = "",
-                    HandlerType = "FULL",
-                    RequiresEmployeeCode = false,
-                    UseBarcodeParser = false,
-                    AppendEmployeeCode = false,
-                    TargetNameColumnIndex = 5
-                },
-                new LabelDefinition
-                {
-                    Code = "BARCODE",
-                    Name = "Tem mã vạch",
-                    Description = "Mã parser + mã nhân viên",
+                    Code = "PRICE_LABEL",
+                    Name = "Tem giá sản phẩm",
+                    Description = "Tên hàng, giá bán và đơn vị tính",
                     IconText = "🏷",
                     IsEnabled = true,
-                    TemplatePath = "",
-                    DataFilePath = "",
-                    HandlerType = "BARCODE",
-                    RequiresEmployeeCode = true,
-                    UseBarcodeParser = true,
-                    AppendEmployeeCode = true,
-                    TargetNameColumnIndex = 5
+                    HandlerType = "DIRECT_PRICE"
                 }
-            }
+            ]
         };
     }
 }

@@ -18,8 +18,6 @@ Mở **Mẫu tem & cài đặt** để:
 - thêm hoặc bỏ một mẫu khỏi app;
 - bật/tắt mẫu mà không xóa file thật;
 - đổi file BarTender `.btw`;
-- đổi file dữ liệu `.xls`, `.xlsx` hoặc `.csv`;
-- chọn cách xử lý `GENERIC`, `FULL`, `BARCODE` hoặc `GLASSES`;
 - kiểm tra mẫu đã đủ điều kiện in hay chưa.
 
 Thao tác **Bỏ khỏi app** chỉ xóa cấu hình. App không xóa file `.btw`, file dữ liệu hoặc
@@ -27,14 +25,26 @@ file Excel gốc của người dùng.
 
 ### Mẫu tem giá không dùng file data
 
-Chọn cách xử lý `DIRECT_PRICE` để truyền dữ liệu thẳng vào BarTender. Trong file `.btw`,
-hãy tạo ba **Named Data Sources** đúng tên:
+App luôn truyền dữ liệu thẳng vào BarTender. Trong file `.btw`, hãy tạo ba
+**Named Data Sources** đúng tên:
 
 - `Tên hàng`
 - `Giá bán`
 - `Đơn vị tính`
 
 Chế độ này không cần chọn file data trung gian.
+
+## Sửa dữ liệu và zoom
+
+- Các ô màu vàng có thể sửa trước khi xem trước hoặc in.
+- Có thể sửa tên in trên tem, đơn vị tính, số lượng và giá bán.
+- Dùng nút `−` / `+` hoặc giữ `Ctrl` và lăn chuột để zoom từ 70% đến 180%.
+- App không ghi đè file Excel gốc.
+
+## Lưu cấu hình
+
+Cấu hình và bản sao mẫu `.btw` được lưu trong
+`%LocalAppData%\KiotVietPrinterBetter`. Cài lại hoặc cập nhật app không làm mất mẫu.
 
 ## Yêu cầu khi chạy
 

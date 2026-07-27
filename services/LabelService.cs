@@ -31,14 +31,18 @@ public class LabelService
         string employeeCode)
     {
         List<ProductRow> products = ReadProducts(sourceExcelFile);
+        return BuildPreview(products, sourceExcelFile, labelCode, employeeCode);
+    }
 
+    public List<PreviewRow> BuildPreview(
+        List<ProductRow> products,
+        string sourceExcelFile,
+        string labelCode,
+        string employeeCode)
+    {
         LabelDefinition label = _catalogService.GetByCode(labelCode);
-
-        // GÁN FILE NGUỒN VÀO LABEL
         label.SourceExcelFile = sourceExcelFile;
-
         var handler = _handlerFactory.GetHandler(label.HandlerType);
-
         return handler.BuildPreview(products, label, employeeCode);
     }
 
@@ -48,14 +52,21 @@ public class LabelService
         string employeeCode)
     {
         List<ProductRow> products = ReadProducts(sourceExcelFile);
+        return PrintProducts(products, sourceExcelFile, labelCode, employeeCode);
+    }
+
+    public int PrintProducts(
+        List<ProductRow> products,
+        string sourceExcelFile,
+        string labelCode,
+        string employeeCode)
+    {
+        if (products.Count == 0)
+            throw new Exception("Không có sản phẩm để in.");
 
         LabelDefinition label = _catalogService.GetByCode(labelCode);
-
-        // GÁN FILE NGUỒN VÀO LABEL
         label.SourceExcelFile = sourceExcelFile;
-
         var handler = _handlerFactory.GetHandler(label.HandlerType);
-
         handler.PrepareDataAndPrint(products, label, employeeCode);
 
         _historyService.Add(new PrintHistory

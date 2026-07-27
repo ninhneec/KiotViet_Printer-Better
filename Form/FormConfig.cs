@@ -9,27 +9,16 @@ namespace KiotVietLabelPrinter.Forms;
 public class FormConfig : Form
 {
     private readonly TextBox txtBarTender = new();
-    private readonly TextBox txtDefaultEmployee = new();
-    private readonly CheckBox chkRememberEmployee = new();
     private readonly ListBox lstLabels = new();
     private readonly TextBox txtCode = new();
     private readonly TextBox txtName = new();
     private readonly TextBox txtDescription = new();
     private readonly TextBox txtTemplate = new();
-    private readonly TextBox txtData = new();
-    private readonly ComboBox cboHandler = new();
     private readonly CheckBox chkEnabled = new();
-    private readonly CheckBox chkEmployee = new();
-    private readonly CheckBox chkParser = new();
-    private readonly CheckBox chkAppendEmployee = new();
     private readonly Label lblStatus = new();
     private readonly Button btnSave = new();
     private readonly BindingList<LabelDefinition> labels = new();
     private bool loading;
-    private sealed record HandlerOption(string Code, string Label)
-    {
-        public override string ToString() => Label;
-    }
 
     public FormConfig()
     {
@@ -49,13 +38,13 @@ public class FormConfig : Form
         var header = new Panel { Dock = DockStyle.Top, Height = 96, BackColor = AppTheme.Ink };
         header.Controls.Add(new Label
         {
-            Text = "Mẫu tem && dữ liệu",
+            Text = "Quản lý mẫu tem",
             Left = 32, Top = 18, Width = 540, Height = 38,
             Font = AppTheme.Display(22), ForeColor = Color.White
         });
         header.Controls.Add(new Label
         {
-            Text = "Chọn một mẫu bên trái, sau đó thay file BarTender hoặc file dữ liệu bên phải.",
+            Text = "Đặt tên và chọn file BarTender. App sẽ tự lưu mẫu để dùng cho những lần sau.",
             Left = 34, Top = 57, Width = 720, Height = 24,
             Font = AppTheme.Body(10), ForeColor = Color.FromArgb(196, 211, 206)
         });
@@ -154,7 +143,7 @@ public class FormConfig : Form
             Dock = DockStyle.Top,
             AutoSize = true,
             ColumnCount = 3,
-            RowCount = 12
+            RowCount = 8
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -168,43 +157,14 @@ public class FormConfig : Form
         AddField(layout, "Mã mẫu (tự động)", txtCode, 2);
         AddField(layout, "Mô tả ngắn", txtDescription, 3);
         AddFileField(layout, "File BarTender", txtTemplate, "Chọn .btw", "*.btw", 4);
-        AddFileField(layout, "File dữ liệu", txtData, "Chọn data", "*.xls;*.xlsx;*.csv", 5);
-
-        cboHandler.DropDownStyle = ComboBoxStyle.DropDownList;
-        cboHandler.DisplayMember = nameof(HandlerOption.Label);
-        cboHandler.ValueMember = nameof(HandlerOption.Code);
-        cboHandler.DataSource = new List<HandlerOption>
-        {
-            new("DIRECT_PRICE", "In trực tiếp: Tên hàng + Giá bán + Đơn vị tính"),
-            new("FULL", "Tem đầy đủ từ file dữ liệu"),
-            new("BARCODE", "Tem mã vạch có mã nhân viên"),
-            new("GLASSES", "Tem kính chuyên dụng"),
-            new("GENERIC", "Mẫu tùy chỉnh dùng file dữ liệu")
-        };
-        AddField(layout, "Loại tem", cboHandler, 6);
-
-        var options = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
         chkEnabled.Text = "Hiển thị mẫu này trong app";
-        chkEmployee.Text = "Yêu cầu mã nhân viên";
-        chkParser.Text = "Tách mã barcode";
-        chkAppendEmployee.Text = "Nối mã nhân viên";
-        foreach (var check in new[] { chkEnabled, chkEmployee, chkParser, chkAppendEmployee })
-        {
-            check.AutoSize = true;
-            check.Margin = new Padding(0, 6, 24, 6);
-            options.Controls.Add(check);
-            check.CheckedChanged += (_, _) => UpdateSelectedFromEditor();
-        }
-        layout.Controls.Add(AppTheme.Caption("Tùy chọn"), 0, 7);
-        layout.Controls.Add(options, 1, 7);
-        layout.SetColumnSpan(options, 2);
+        chkEnabled.AutoSize = true;
+        chkEnabled.CheckedChanged += (_, _) => UpdateSelectedFromEditor();
+        layout.Controls.Add(AppTheme.Caption("Hiển thị"), 0, 5);
+        layout.Controls.Add(chkEnabled, 1, 5);
 
-        AddTitle(layout, "Cài đặt chung", "Chỉ cần thiết lập một lần trên máy dùng để in.", 8);
-        AddFileField(layout, "BarTender.exe", txtBarTender, "Tìm ứng dụng", "*.exe", 9);
-        AddField(layout, "Mã NV mặc định", txtDefaultEmployee, 10);
-        chkRememberEmployee.Text = "Ghi nhớ mã nhân viên cho lần in sau";
-        chkRememberEmployee.AutoSize = true;
-        layout.Controls.Add(chkRememberEmployee, 1, 11);
+        AddTitle(layout, "BarTender", "Chọn chương trình BarTender đã cài trên máy.", 6);
+        AddFileField(layout, "BarTender.exe", txtBarTender, "Tìm ứng dụng", "*.exe", 7);
 
         lblStatus.Dock = DockStyle.Bottom;
         lblStatus.Height = 52;
@@ -212,9 +172,8 @@ public class FormConfig : Form
         lblStatus.Font = AppTheme.Body(9.5F, FontStyle.Bold);
         scroll.Controls.Add(lblStatus);
 
-        foreach (var text in new[] { txtName, txtCode, txtDescription, txtTemplate, txtData })
+        foreach (var text in new[] { txtName, txtCode, txtDescription, txtTemplate })
             text.TextChanged += (_, _) => UpdateSelectedFromEditor();
-        cboHandler.SelectedIndexChanged += (_, _) => HandlerChanged();
 
         return host;
     }
@@ -267,8 +226,6 @@ public class FormConfig : Form
         loading = true;
         var config = ConfigService.Instance.Config;
         txtBarTender.Text = config.BarTenderExe;
-        txtDefaultEmployee.Text = config.DefaultEmployee;
-        chkRememberEmployee.Checked = config.RememberEmployee;
         labels.Clear();
         foreach (var item in config.Labels)
             labels.Add(Clone(item));
@@ -297,7 +254,7 @@ public class FormConfig : Form
         loading = true;
         var item = lstLabels.SelectedItem as LabelDefinition;
         var enabled = item != null;
-        foreach (var control in new Control[] { txtCode, txtName, txtDescription, txtTemplate, txtData, cboHandler, chkEnabled, chkEmployee, chkParser, chkAppendEmployee })
+        foreach (var control in new Control[] { txtCode, txtName, txtDescription, txtTemplate, chkEnabled })
             control.Enabled = enabled;
         if (item != null)
         {
@@ -305,16 +262,9 @@ public class FormConfig : Form
             txtName.Text = item.Name;
             txtDescription.Text = item.Description;
             txtTemplate.Text = item.TemplatePath;
-            txtData.Text = item.DataFilePath;
-            cboHandler.SelectedValue = item.HandlerType;
-            if (cboHandler.SelectedIndex < 0) cboHandler.SelectedValue = "GENERIC";
             chkEnabled.Checked = item.IsEnabled;
-            chkEmployee.Checked = item.RequiresEmployeeCode;
-            chkParser.Checked = item.UseBarcodeParser;
-            chkAppendEmployee.Checked = item.AppendEmployeeCode;
         }
         loading = false;
-        ApplyModeUi();
         UpdateStatus();
     }
 
@@ -325,65 +275,14 @@ public class FormConfig : Form
         item.Name = txtName.Text.Trim();
         item.Description = txtDescription.Text.Trim();
         item.TemplatePath = txtTemplate.Text.Trim();
-        item.DataFilePath = txtData.Text.Trim();
-        item.HandlerType = cboHandler.SelectedValue?.ToString() ?? "GENERIC";
+        item.DataFilePath = "";
+        item.HandlerType = "DIRECT_PRICE";
         item.IsEnabled = chkEnabled.Checked;
-        item.RequiresEmployeeCode = chkEmployee.Checked;
-        item.UseBarcodeParser = chkParser.Checked;
-        item.AppendEmployeeCode = chkAppendEmployee.Checked;
+        item.RequiresEmployeeCode = false;
+        item.UseBarcodeParser = false;
+        item.AppendEmployeeCode = false;
         RefreshList();
         UpdateStatus();
-    }
-
-    private void HandlerChanged()
-    {
-        if (loading) return;
-
-        string mode = cboHandler.SelectedValue?.ToString() ?? "GENERIC";
-        loading = true;
-
-        switch (mode)
-        {
-            case "DIRECT_PRICE":
-            case "FULL":
-            case "GENERIC":
-                chkEmployee.Checked = false;
-                chkParser.Checked = false;
-                chkAppendEmployee.Checked = false;
-                break;
-
-            case "BARCODE":
-                chkEmployee.Checked = true;
-                chkParser.Checked = true;
-                chkAppendEmployee.Checked = true;
-                break;
-
-            case "GLASSES":
-                chkEmployee.Checked = false;
-                chkParser.Checked = false;
-                chkAppendEmployee.Checked = false;
-                break;
-        }
-
-        loading = false;
-        ApplyModeUi();
-        UpdateSelectedFromEditor();
-    }
-
-    private void ApplyModeUi()
-    {
-        string mode = cboHandler.SelectedValue?.ToString() ?? "GENERIC";
-        bool direct = mode == "DIRECT_PRICE";
-        bool barcode = mode == "BARCODE";
-
-        txtData.Enabled = !direct;
-        txtData.BackColor = direct ? AppTheme.SurfaceMuted : AppTheme.Surface;
-        chkEmployee.Enabled = barcode;
-        chkParser.Enabled = barcode;
-        chkAppendEmployee.Enabled = barcode;
-
-        if (direct)
-            txtData.Text = "";
     }
 
     private void UpdateStatus()
@@ -410,7 +309,7 @@ public class FormConfig : Form
             Code = $"LABEL_{labels.Count + 1}",
             Name = "Mẫu tem mới",
             Description = "Chưa có mô tả",
-            HandlerType = "GENERIC",
+            HandlerType = "DIRECT_PRICE",
             IsEnabled = true
         };
         labels.Add(item);
@@ -443,9 +342,14 @@ public class FormConfig : Form
             return;
         }
         ConfigService.Instance.Config.BarTenderExe = txtBarTender.Text.Trim();
-        ConfigService.Instance.Config.DefaultEmployee = txtDefaultEmployee.Text.Trim();
-        ConfigService.Instance.Config.RememberEmployee = chkRememberEmployee.Checked;
-        ConfigService.Instance.Config.Labels = labels.Select(Clone).ToList();
+        ConfigService.Instance.Config.Labels = labels
+            .Select(Clone)
+            .Select(item =>
+            {
+                item.TemplatePath = ConfigService.Instance.StoreTemplate(item.TemplatePath, item.Code);
+                return item;
+            })
+            .ToList();
         ConfigService.Instance.Save();
         DialogResult = DialogResult.OK;
         Close();
@@ -455,8 +359,8 @@ public class FormConfig : Form
     {
         Code = x.Code, Name = x.Name, Description = x.Description, IconText = x.IconText,
         IsEnabled = x.IsEnabled, TemplatePath = x.TemplatePath, DataFilePath = x.DataFilePath,
-        HandlerType = x.HandlerType, RequiresEmployeeCode = x.RequiresEmployeeCode,
-        UseBarcodeParser = x.UseBarcodeParser, AppendEmployeeCode = x.AppendEmployeeCode,
+        HandlerType = "DIRECT_PRICE", RequiresEmployeeCode = false,
+        UseBarcodeParser = false, AppendEmployeeCode = false,
         TargetNameColumnIndex = x.TargetNameColumnIndex
     };
 

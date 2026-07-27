@@ -15,15 +15,18 @@ public class FormPreview : Form
     private readonly string _sourceExcelFile;
     private readonly string _labelCode;
     private readonly string _employeeCode;
+    private readonly List<ProductRow>? _editedProducts;
 
     public FormPreview(
         string sourceExcelFile,
         string labelCode,
-        string employeeCode)
+        string employeeCode,
+        List<ProductRow>? editedProducts = null)
     {
         _sourceExcelFile = sourceExcelFile;
         _labelCode = labelCode;
         _employeeCode = employeeCode;
+        _editedProducts = editedProducts;
 
         Text = "Xem trước dữ liệu in tem";
         Width = 1250;
@@ -80,10 +83,13 @@ public class FormPreview : Form
     {
         try
         {
-            List<PreviewRow> rows = _labelService.BuildPreview(
-                _sourceExcelFile,
-                _labelCode,
-                _employeeCode);
+            List<PreviewRow> rows = _editedProducts == null
+                ? _labelService.BuildPreview(_sourceExcelFile, _labelCode, _employeeCode)
+                : _labelService.BuildPreview(
+                    _editedProducts,
+                    _sourceExcelFile,
+                    _labelCode,
+                    _employeeCode);
 
             dgvPreview.DataSource = null;
             dgvPreview.DataSource = rows;
@@ -201,10 +207,13 @@ public class FormPreview : Form
 
         try
         {
-            int total = await Task.Run(() => _labelService.Print(
-                _sourceExcelFile,
-                _labelCode,
-                _employeeCode));
+            int total = await Task.Run(() => _editedProducts == null
+                ? _labelService.Print(_sourceExcelFile, _labelCode, _employeeCode)
+                : _labelService.PrintProducts(
+                    _editedProducts,
+                    _sourceExcelFile,
+                    _labelCode,
+                    _employeeCode));
 
             MessageBox.Show($"Đã xử lý {total} sản phẩm.", "Thành công");
             DialogResult = DialogResult.OK;

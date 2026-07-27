@@ -18,8 +18,10 @@ public class FormMain : Form
     private readonly Label lblEmployee = new();
     private readonly Button btnPreview = new();
     private readonly Button btnPrint = new();
+    private readonly Label lblZoom = new();
     private LabelDefinition? selectedLabel;
     private List<ProductRow> products = new();
+    private int zoomPercent = 100;
 
     public FormMain()
     {
@@ -146,8 +148,40 @@ public class FormMain : Form
         panel.Controls.Add(lblSummary);
         lblSummary.BringToFront();
 
+        var zoomBar = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            Height = 38,
+            FlowDirection = FlowDirection.RightToLeft,
+            Padding = new Padding(0, 2, 0, 2)
+        };
+        var zoomIn = new Button { Text = "+", Width = 36, Height = 30 };
+        var zoomOut = new Button { Text = "−", Width = 36, Height = 30 };
+        AppTheme.StyleSecondary(zoomIn);
+        AppTheme.StyleSecondary(zoomOut);
+        lblZoom.Text = "100%";
+        lblZoom.Width = 58;
+        lblZoom.Height = 30;
+        lblZoom.TextAlign = ContentAlignment.MiddleCenter;
+        zoomIn.Click += (_, _) => SetZoom(zoomPercent + 10);
+        zoomOut.Click += (_, _) => SetZoom(zoomPercent - 10);
+        lblZoom.Click += (_, _) => SetZoom(100);
+        zoomBar.Controls.Add(zoomIn);
+        zoomBar.Controls.Add(lblZoom);
+        zoomBar.Controls.Add(zoomOut);
+        zoomBar.Controls.Add(new Label
+        {
+            Text = "Ctrl + lăn chuột để zoom",
+            Width = 170,
+            Height = 30,
+            TextAlign = ContentAlignment.MiddleRight,
+            ForeColor = AppTheme.Muted
+        });
+        panel.Controls.Add(zoomBar);
+        zoomBar.BringToFront();
+
         grid.Dock = DockStyle.Fill;
-        grid.ReadOnly = true;
+        grid.ReadOnly = false;
         grid.AllowUserToAddRows = false;
         grid.AllowUserToDeleteRows = false;
         grid.RowHeadersVisible = false;
@@ -162,6 +196,9 @@ public class FormMain : Form
         grid.EnableHeadersVisualStyles = false;
         grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(218, 238, 231);
         grid.DefaultCellStyle.SelectionForeColor = AppTheme.Ink;
+        grid.CellValidating += Grid_CellValidating;
+        grid.CellEndEdit += (_, _) => UpdateSummary();
+        grid.MouseWheel += Grid_MouseWheel;
         panel.Controls.Add(grid);
         grid.BringToFront();
         return panel;
@@ -181,14 +218,6 @@ public class FormMain : Form
         lblTemplateState.Padding = new Padding(10);
         lblTemplateState.Font = AppTheme.Body(9F, FontStyle.Bold);
         panel.Controls.Add(lblTemplateState);
-
-        var employeePanel = new Panel { Dock = DockStyle.Bottom, Height = 70 };
-        lblEmployee.Text = "Mã nhân viên";
-        lblEmployee.SetBounds(0, 7, 130, 24);
-        txtEmployee.SetBounds(0, 34, 250, 30);
-        employeePanel.Controls.Add(lblEmployee);
-        employeePanel.Controls.Add(txtEmployee);
-        panel.Controls.Add(employeePanel);
 
         templateList.Dock = DockStyle.Fill;
         templateList.AutoScroll = true;
@@ -252,7 +281,7 @@ public class FormMain : Form
             FormatGrid();
             lblFileState.Text = $"✓ Đã đọc {products.Count:N0} sản phẩm";
             lblFileState.ForeColor = AppTheme.AccentDark;
-            lblSummary.Text = $"{products.Count:N0} sản phẩm • Tổng số lượng {products.Sum(x => x.Quantity):N0}";
+            UpdateSummary();
             ConfigService.Instance.Config.LastExcelFile = path;
             ConfigService.Instance.Config.LastFolder = Path.GetDirectoryName(path) ?? "";
             ConfigService.Instance.Save();
@@ -279,7 +308,20 @@ public class FormMain : Form
         RenameColumn("Quantity", "Số lượng", 65);
         RenameColumn("Price", "Giá bán", 75);
         RenameColumn("Description", "Mô tả", 100);
+        foreach (DataGridViewColumn column in grid.Columns)
+            column.ReadOnly = true;
+
+        SetEditable("ProductNameWithAttr");
+        SetEditable("Unit");
+        SetEditable("Quantity");
+        SetEditable("Price");
+
+        if (grid.Columns["ProductName"] is { } productName)
+            productName.Visible = false;
+        if (grid.Columns["ProductNameWithAttr"] is { } printName)
+            printName.HeaderText = "Tên in trên tem";
         if (grid.Columns["Price"] is { } price) price.DefaultCellStyle.Format = "N0";
+        SetZoom(zoomPercent);
     }
 
     private void RenameColumn(string name, string text, float weight)
@@ -287,6 +329,60 @@ public class FormMain : Form
         if (grid.Columns[name] is not { } column) return;
         column.HeaderText = text;
         column.FillWeight = weight;
+    }
+
+    private void SetEditable(string columnName)
+    {
+        if (grid.Columns[columnName] is not { } column) return;
+        column.ReadOnly = false;
+        column.DefaultCellStyle.BackColor = Color.FromArgb(255, 249, 218);
+    }
+
+    private void Grid_CellValidating(object? sender, DataGridViewCellValidatingEventArgs e)
+    {
+        string? columnName = grid.Columns[e.ColumnIndex].Name;
+        if (columnName is not ("Quantity" or "Price"))
+            return;
+
+        if (!double.TryParse(e.FormattedValue?.ToString(), out double value) || value < 0)
+        {
+            e.Cancel = true;
+            MessageBox.Show(
+                columnName == "Price"
+                    ? "Giá bán phải là một số từ 0 trở lên."
+                    : "Số lượng phải là một số từ 0 trở lên.",
+                "Dữ liệu chưa đúng",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+    }
+
+    private void Grid_MouseWheel(object? sender, MouseEventArgs e)
+    {
+        if ((ModifierKeys & Keys.Control) != Keys.Control)
+            return;
+
+        if (e is HandledMouseEventArgs handled)
+            handled.Handled = true;
+        SetZoom(zoomPercent + (e.Delta > 0 ? 10 : -10));
+    }
+
+    private void SetZoom(int percent)
+    {
+        zoomPercent = Math.Clamp(percent, 70, 180);
+        lblZoom.Text = $"{zoomPercent}%";
+        float scale = zoomPercent / 100F;
+        grid.DefaultCellStyle.Font = AppTheme.Body(9.5F * scale);
+        grid.ColumnHeadersDefaultCellStyle.Font = AppTheme.Body(9F * scale, FontStyle.Bold);
+        grid.RowTemplate.Height = Math.Max(24, (int)(28 * scale));
+        foreach (DataGridViewRow row in grid.Rows)
+            row.Height = grid.RowTemplate.Height;
+    }
+
+    private void UpdateSummary()
+    {
+        lblSummary.Text =
+            $"{products.Count:N0} sản phẩm • Tổng số lượng {products.Sum(x => x.Quantity):N0} • Ô màu vàng có thể sửa";
     }
 
     private void ReloadTemplates()
@@ -302,6 +398,15 @@ public class FormMain : Form
                 Text = "Chưa có mẫu tem.\nMở “Mẫu tem & cài đặt” để thêm mẫu đầu tiên.",
                 Width = 300, Height = 70, ForeColor = AppTheme.Muted
             });
+        }
+        else
+        {
+            List<Button> readyButtons = templateList.Controls
+                .OfType<Button>()
+                .Where(button => button.Enabled)
+                .ToList();
+            if (readyButtons.Count == 1)
+                readyButtons[0].PerformClick();
         }
         UpdateActions();
     }
@@ -337,12 +442,6 @@ public class FormMain : Form
         }
         selectedButton.BackColor = Color.FromArgb(218, 238, 231);
         selectedButton.FlatAppearance.BorderColor = AppTheme.Accent;
-        var showEmployee = item.RequiresEmployeeCode || item.AppendEmployeeCode || item.HandlerType is "BARCODE" or "GLASSES";
-        lblEmployee.Visible = showEmployee;
-        txtEmployee.Visible = showEmployee;
-        lblEmployee.Text = item.HandlerType == "GLASSES" ? "Mã màu" : "Mã nhân viên";
-        if (showEmployee && string.IsNullOrWhiteSpace(txtEmployee.Text))
-            txtEmployee.Text = ConfigService.Instance.Config.DefaultEmployee;
         UpdateActions();
     }
 
@@ -361,7 +460,12 @@ public class FormMain : Form
     private void Preview_Click(object? sender, EventArgs e)
     {
         if (!EnsureReady()) return;
-        using var form = new FormPreview(txtExcel.Text, selectedLabel!.Code, txtEmployee.Text.Trim());
+        grid.EndEdit();
+        using var form = new FormPreview(
+            txtExcel.Text,
+            selectedLabel!.Code,
+            "",
+            products.Select(CloneProduct).ToList());
         form.ShowDialog(this);
     }
 
@@ -379,7 +483,13 @@ public class FormMain : Form
         UseWaitCursor = true;
         try
         {
-            var count = await Task.Run(() => labelService.Print(txtExcel.Text, selectedLabel.Code, txtEmployee.Text.Trim()));
+            grid.EndEdit();
+            var printProducts = products.Select(CloneProduct).ToList();
+            var count = await Task.Run(() => labelService.PrintProducts(
+                printProducts,
+                txtExcel.Text,
+                selectedLabel.Code,
+                ""));
             MessageBox.Show($"Đã gửi lệnh in cho {count:N0} sản phẩm.", "In thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
@@ -401,12 +511,6 @@ public class FormMain : Form
             MessageBox.Show("Hãy chọn file Excel và loại tem trước.", "Chưa đủ thông tin");
             return false;
         }
-        if (selectedLabel.RequiresEmployeeCode && string.IsNullOrWhiteSpace(txtEmployee.Text))
-        {
-            MessageBox.Show("Hãy nhập mã nhân viên.", "Thiếu mã nhân viên");
-            txtEmployee.Focus();
-            return false;
-        }
         return true;
     }
 
@@ -417,8 +521,6 @@ public class FormMain : Form
         else
         {
             lblFileState.Text = "Có thể kéo-thả file vào cửa sổ";
-            lblEmployee.Visible = false;
-            txtEmployee.Visible = false;
         }
     }
 
@@ -434,4 +536,21 @@ public class FormMain : Form
         var file = files?.FirstOrDefault(x => x.EndsWith(".xls", StringComparison.OrdinalIgnoreCase) || x.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase));
         if (file != null) LoadExcel(file);
     }
+
+    private static ProductRow CloneProduct(ProductRow item) => new()
+    {
+        StoreName = item.StoreName,
+        Category = item.Category,
+        ProductCode = item.ProductCode,
+        Barcode = item.Barcode,
+        ProductName = item.ProductName,
+        ProductNameWithAttr = item.ProductNameWithAttr,
+        Unit = item.Unit,
+        Quantity = item.Quantity,
+        Price = item.Price,
+        Description = item.Description,
+        Attribute = item.Attribute,
+        Attribute2 = item.Attribute2,
+        Position = item.Position
+    };
 }
