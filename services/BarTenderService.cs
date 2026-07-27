@@ -249,7 +249,7 @@ public class BarTenderService
             """
             Option Explicit
             Dim btApp, btFormat, btPrintSetup
-            Dim btwPath, printerName, recordRange
+            Dim btwPath, printerName, recordRange, actualPrinter
             btwPath = WScript.Arguments(0)
             printerName = WScript.Arguments(1)
             recordRange = WScript.Arguments(2)
@@ -263,7 +263,8 @@ public class BarTenderService
 
             Err.Clear
             btApp.Visible = False
-            Set btFormat = btApp.Formats.Open(btwPath, False, "")
+            ' Truyen may in ngay luc mo file de BarTender 10.1 tao dung print engine.
+            Set btFormat = btApp.Formats.Open(btwPath, False, printerName)
             If Err.Number <> 0 Then
               WScript.StdErr.WriteLine "OPEN_FORMAT: " & Err.Description
               btApp.Quit 1
@@ -306,6 +307,16 @@ public class BarTenderService
             End If
 
             Err.Clear
+            Set btPrintSetup = btFormat.PrintSetup
+            actualPrinter = btPrintSetup.Printer
+            If Err.Number <> 0 Or Len(actualPrinter) = 0 Then
+              WScript.StdErr.WriteLine "RESOLVE_PRINTER: Khong xac dinh duoc may in tu file BTW."
+              btFormat.Close 1
+              btApp.Quit 1
+              WScript.Quit 7
+            End If
+
+            Err.Clear
             ' Tham so 1: hien cua so trang thai; tham so 2: hien Print dialog.
             ' Ca hai phai False de job di thang xuong spooler.
             btFormat.PrintOut False, False
@@ -313,12 +324,15 @@ public class BarTenderService
               WScript.StdErr.WriteLine "PRINT_OUT: " & Err.Description
               btFormat.Close 1
               btApp.Quit 1
-              WScript.Quit 7
+              WScript.Quit 8
             End If
 
+            ' PrintOut tra ve som tren BarTender 10.1. Neu dong COM ngay, print engine
+            ' co the bi tat truoc khi job xuat hien trong Windows spooler.
+            WScript.Sleep 5000
             btFormat.Close 1
             btApp.Quit 1
-            WScript.Echo "OK range=" & recordRange
+            WScript.Echo "OK range=" & recordRange & " printer=" & actualPrinter
             """,
             new UTF8Encoding(false));
 
