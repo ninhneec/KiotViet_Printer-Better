@@ -1,0 +1,47 @@
+name: Build Windows app
+
+on:
+  push:
+    branches: [main, "codex/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore packages
+        run: dotnet restore "KiotViet Label Printer Pro V2.csproj"
+
+      - name: Build
+        run: dotnet build "KiotViet Label Printer Pro V2.csproj" --configuration Release --no-restore
+
+      - name: Publish portable folder
+        run: >
+          dotnet publish "KiotViet Label Printer Pro V2.csproj"
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          --output publish
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+
+      - name: Upload app
+        uses: actions/upload-artifact@v4
+        with:
+          name: KiotViet-Printer-Better-win-x64
+          path: publish/**
+          if-no-files-found: error
+          retention-days: 30

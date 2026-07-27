@@ -1,32 +1,40 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using KiotVietLabelPrinter.Models;
 using KiotVietLabelPrinter.Services;
+using KiotVietLabelPrinter.Ui;
 
 namespace KiotVietLabelPrinter.Forms;
 
 public class FormConfig : Form
 {
     private readonly TextBox txtBarTender = new();
-    private readonly CheckBox chkRememberEmployee = new();
     private readonly TextBox txtDefaultEmployee = new();
-
-    private readonly Button btnBrowseBarTender = new();
+    private readonly CheckBox chkRememberEmployee = new();
+    private readonly ListBox lstLabels = new();
+    private readonly TextBox txtCode = new();
+    private readonly TextBox txtName = new();
+    private readonly TextBox txtDescription = new();
+    private readonly TextBox txtTemplate = new();
+    private readonly TextBox txtData = new();
+    private readonly ComboBox cboHandler = new();
+    private readonly CheckBox chkEnabled = new();
+    private readonly CheckBox chkEmployee = new();
+    private readonly CheckBox chkParser = new();
+    private readonly CheckBox chkAppendEmployee = new();
+    private readonly Label lblStatus = new();
     private readonly Button btnSave = new();
-    private readonly Button btnAddLabel = new();
-    private readonly Button btnDeleteLabel = new();
-
-    private readonly DataGridView dgvLabels = new();
-
-    private BindingList<LabelDefinition> _labels = new();
+    private readonly BindingList<LabelDefinition> labels = new();
+    private bool loading;
 
     public FormConfig()
     {
-        Text = "Cấu hình phần mềm";
-        Width = 1400;
-        Height = 760;
-        StartPosition = FormStartPosition.CenterScreen;
-        FormBorderStyle = FormBorderStyle.FixedDialog;
-        MaximizeBox = false;
+        Text = "Quản lý mẫu tem";
+        MinimumSize = new Size(1080, 720);
+        Size = new Size(1180, 780);
+        StartPosition = FormStartPosition.CenterParent;
+        BackColor = AppTheme.Canvas;
+        Font = AppTheme.Body();
 
         BuildUi();
         LoadConfig();
@@ -34,385 +42,380 @@ public class FormConfig : Form
 
     private void BuildUi()
     {
-        BuildGeneralConfigSection();
-        BuildLabelGridSection();
-        BuildBottomButtons();
+        var header = new Panel { Dock = DockStyle.Top, Height = 96, BackColor = AppTheme.Ink };
+        header.Controls.Add(new Label
+        {
+            Text = "Mẫu tem & dữ liệu",
+            Left = 32, Top = 18, Width = 540, Height = 38,
+            Font = AppTheme.Display(22), ForeColor = Color.White
+        });
+        header.Controls.Add(new Label
+        {
+            Text = "Chọn một mẫu bên trái, sau đó thay file BarTender hoặc file dữ liệu bên phải.",
+            Left = 34, Top = 57, Width = 720, Height = 24,
+            Font = AppTheme.Body(10), ForeColor = Color.FromArgb(196, 211, 206)
+        });
+        Controls.Add(header);
+
+        var footer = new Panel { Dock = DockStyle.Bottom, Height = 76, BackColor = AppTheme.Surface };
+        btnSave.Text = "Lưu thay đổi";
+        btnSave.SetBounds(Width - 210, 17, 160, 42);
+        btnSave.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        AppTheme.StylePrimary(btnSave);
+        btnSave.Click += Save_Click;
+        footer.Controls.Add(btnSave);
+
+        var btnCancel = new Button { Text = "Đóng", Width = 100, Height = 42, Top = 17 };
+        btnCancel.Left = btnSave.Left - 116;
+        btnCancel.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        AppTheme.StyleSecondary(btnCancel);
+        btnCancel.Click += (_, _) => Close();
+        footer.Controls.Add(btnCancel);
+        Controls.Add(footer);
+
+        var body = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            Padding = new Padding(24),
+            ColumnCount = 2,
+            RowCount = 1,
+            BackColor = AppTheme.Canvas
+        };
+        body.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 310));
+        body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        Controls.Add(body);
+        body.BringToFront();
+
+        body.Controls.Add(BuildLabelList(), 0, 0);
+        body.Controls.Add(BuildEditor(), 1, 0);
     }
 
-    #region UI - General config
-    private void BuildGeneralConfigSection()
+    private Control BuildLabelList()
     {
-        GroupBox grpGeneral = new()
+        var panel = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.Surface, Padding = new Padding(18) };
+        panel.Controls.Add(new Label
         {
-            Text = "Cấu hình chung",
-            Left = 20,
-            Top = 20,
-            Width = 1340,
-            Height = 150
-        };
-        Controls.Add(grpGeneral);
+            Text = "Các loại tem",
+            Dock = DockStyle.Top,
+            Height = 32,
+            Font = AppTheme.Display(15),
+            ForeColor = AppTheme.Ink
+        });
 
-        Label lblBarTender = new()
+        var hint = new Label
         {
-            Text = "BarTender.exe",
-            Left = 20,
-            Top = 35,
-            Width = 120
+            Text = "Mẫu bị tắt vẫn được giữ lại và có thể bật lại bất cứ lúc nào.",
+            Dock = DockStyle.Top,
+            Height = 45,
+            Font = AppTheme.Body(9),
+            ForeColor = AppTheme.Muted
         };
-        grpGeneral.Controls.Add(lblBarTender);
+        panel.Controls.Add(hint);
+        hint.BringToFront();
 
-        txtBarTender.SetBounds(150, 30, 1000, 28);
-        grpGeneral.Controls.Add(txtBarTender);
-
-        btnBrowseBarTender.Text = "...";
-        btnBrowseBarTender.SetBounds(1170, 30, 50, 28);
-        btnBrowseBarTender.Click += (_, _) => BrowseFile(txtBarTender, "Executable|*.exe");
-        grpGeneral.Controls.Add(btnBrowseBarTender);
-
-        chkRememberEmployee.Text = "Ghi nhớ mã nhân viên mặc định";
-        chkRememberEmployee.Left = 20;
-        chkRememberEmployee.Top = 80;
-        chkRememberEmployee.Width = 260;
-        grpGeneral.Controls.Add(chkRememberEmployee);
-
-        Label lblDefaultEmployee = new()
+        var actions = new FlowLayoutPanel
         {
-            Text = "Mã NV mặc định",
-            Left = 320,
-            Top = 82,
-            Width = 120
+            Dock = DockStyle.Bottom, Height = 48,
+            FlowDirection = FlowDirection.LeftToRight
         };
-        grpGeneral.Controls.Add(lblDefaultEmployee);
+        var add = new Button { Text = "+ Thêm mẫu", Width = 122, Height = 36 };
+        var remove = new Button { Text = "Bỏ khỏi app", Width = 122, Height = 36 };
+        AppTheme.StylePrimary(add);
+        AppTheme.StyleSecondary(remove);
+        remove.ForeColor = AppTheme.Danger;
+        add.Click += AddLabel_Click;
+        remove.Click += RemoveLabel_Click;
+        actions.Controls.Add(add);
+        actions.Controls.Add(remove);
+        panel.Controls.Add(actions);
 
-        txtDefaultEmployee.SetBounds(450, 78, 220, 28);
-        grpGeneral.Controls.Add(txtDefaultEmployee);
-
-        Label lblHint = new()
-        {
-            Text = "Ví dụ: H020 hoặc H020-K026",
-            Left = 690,
-            Top = 82,
-            Width = 250,
-            ForeColor = Color.DimGray
-        };
-        grpGeneral.Controls.Add(lblHint);
+        lstLabels.Dock = DockStyle.Fill;
+        lstLabels.BorderStyle = BorderStyle.None;
+        lstLabels.Font = AppTheme.Body(11);
+        lstLabels.ItemHeight = 34;
+        lstLabels.IntegralHeight = false;
+        lstLabels.SelectedIndexChanged += LabelSelectionChanged;
+        panel.Controls.Add(lstLabels);
+        lstLabels.BringToFront();
+        return panel;
     }
-    #endregion
 
-    #region UI - Label grid
-    private void BuildLabelGridSection()
+    private Control BuildEditor()
     {
-        GroupBox grpLabels = new()
+        var host = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.Canvas, Padding = new Padding(18, 0, 0, 0) };
+        var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = AppTheme.Surface, Padding = new Padding(28) };
+        host.Controls.Add(scroll);
+
+        var layout = new TableLayoutPanel
         {
-            Text = "Danh sách loại tem",
-            Left = 20,
-            Top = 190,
-            Width = 1340,
-            Height = 470
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 3,
+            RowCount = 12
         };
-        Controls.Add(grpLabels);
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 118));
+        scroll.Controls.Add(layout);
 
-        btnAddLabel.Text = "Thêm tem";
-        btnAddLabel.SetBounds(20, 30, 110, 32);
-        btnAddLabel.Click += BtnAddLabel_Click;
-        grpLabels.Controls.Add(btnAddLabel);
+        AddTitle(layout, "Thông tin mẫu", "Tên và mô tả sẽ xuất hiện ở màn hình chọn tem.", 0);
+        AddField(layout, "Tên loại tem", txtName, 1);
+        AddField(layout, "Mã nhận diện", txtCode, 2);
+        AddField(layout, "Mô tả ngắn", txtDescription, 3);
+        AddFileField(layout, "File BarTender", txtTemplate, "Chọn .btw", "*.btw", 4);
+        AddFileField(layout, "File dữ liệu", txtData, "Chọn data", "*.xls;*.xlsx;*.csv", 5);
 
-        btnDeleteLabel.Text = "Xóa tem";
-        btnDeleteLabel.SetBounds(145, 30, 110, 32);
-        btnDeleteLabel.Click += BtnDeleteLabel_Click;
-        grpLabels.Controls.Add(btnDeleteLabel);
+        cboHandler.DropDownStyle = ComboBoxStyle.DropDownList;
+        cboHandler.Items.AddRange(["DIRECT_PRICE", "GENERIC", "FULL", "BARCODE", "GLASSES"]);
+        AddField(layout, "Cách xử lý", cboHandler, 6);
 
-        Label lblGridHint = new()
+        var options = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
+        chkEnabled.Text = "Hiển thị mẫu này trong app";
+        chkEmployee.Text = "Yêu cầu mã nhân viên";
+        chkParser.Text = "Tách mã barcode";
+        chkAppendEmployee.Text = "Nối mã nhân viên";
+        foreach (var check in new[] { chkEnabled, chkEmployee, chkParser, chkAppendEmployee })
         {
-            Text = "Mỗi dòng là 1 loại tem. Có thể sửa trực tiếp trong bảng rồi bấm Lưu cấu hình.",
-            Left = 280,
-            Top = 37,
-            Width = 700,
-            ForeColor = Color.DimGray
-        };
-        grpLabels.Controls.Add(lblGridHint);
+            check.AutoSize = true;
+            check.Margin = new Padding(0, 6, 24, 6);
+            options.Controls.Add(check);
+            check.CheckedChanged += (_, _) => UpdateSelectedFromEditor();
+        }
+        layout.Controls.Add(AppTheme.Caption("Tùy chọn"), 0, 7);
+        layout.Controls.Add(options, 1, 7);
+        layout.SetColumnSpan(options, 2);
 
-        dgvLabels.Left = 20;
-        dgvLabels.Top = 80;
-        dgvLabels.Width = 1290;
-        dgvLabels.Height = 360;
-        dgvLabels.AllowUserToAddRows = false;
-        dgvLabels.AllowUserToDeleteRows = false;
-        dgvLabels.AutoGenerateColumns = false;
-        dgvLabels.RowHeadersVisible = false;
-        dgvLabels.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-        dgvLabels.MultiSelect = false;
-        dgvLabels.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
-        dgvLabels.EditMode = DataGridViewEditMode.EditOnEnter;
+        AddTitle(layout, "Cài đặt chung", "Chỉ cần thiết lập một lần trên máy dùng để in.", 8);
+        AddFileField(layout, "BarTender.exe", txtBarTender, "Tìm ứng dụng", "*.exe", 9);
+        AddField(layout, "Mã NV mặc định", txtDefaultEmployee, 10);
+        chkRememberEmployee.Text = "Ghi nhớ mã nhân viên cho lần in sau";
+        chkRememberEmployee.AutoSize = true;
+        layout.Controls.Add(chkRememberEmployee, 1, 11);
 
-        BuildLabelColumns();
-        grpLabels.Controls.Add(dgvLabels);
+        lblStatus.Dock = DockStyle.Bottom;
+        lblStatus.Height = 52;
+        lblStatus.Padding = new Padding(14);
+        lblStatus.Font = AppTheme.Body(9.5F, FontStyle.Bold);
+        scroll.Controls.Add(lblStatus);
+
+        foreach (var text in new[] { txtName, txtCode, txtDescription, txtTemplate, txtData })
+            text.TextChanged += (_, _) => UpdateSelectedFromEditor();
+        cboHandler.SelectedIndexChanged += (_, _) => UpdateSelectedFromEditor();
+
+        return host;
     }
 
-    private void BuildLabelColumns()
+    private static void AddTitle(TableLayoutPanel layout, string title, string subtitle, int row)
     {
-        dgvLabels.Columns.Clear();
-
-        dgvLabels.Columns.Add(new DataGridViewTextBoxColumn
+        var block = new Panel { Dock = DockStyle.Fill, Height = 70, Margin = new Padding(0, 4, 0, 8) };
+        block.Controls.Add(new Label
         {
-            DataPropertyName = "Code",
-            HeaderText = "Code",
-            Width = 90
+            Text = title, Left = 0, Top = 4, Width = 500, Height = 30,
+            Font = AppTheme.Display(15), ForeColor = AppTheme.Ink
         });
-
-        dgvLabels.Columns.Add(new DataGridViewTextBoxColumn
+        block.Controls.Add(new Label
         {
-            DataPropertyName = "Name",
-            HeaderText = "Tên tem",
-            Width = 150
+            Text = subtitle, Left = 1, Top = 35, Width = 580, Height = 25,
+            Font = AppTheme.Body(9), ForeColor = AppTheme.Muted
         });
-
-        dgvLabels.Columns.Add(new DataGridViewTextBoxColumn
-        {
-            DataPropertyName = "Description",
-            HeaderText = "Mô tả",
-            Width = 220
-        });
-
-        dgvLabels.Columns.Add(new DataGridViewTextBoxColumn
-        {
-            DataPropertyName = "IconText",
-            HeaderText = "Icon",
-            Width = 70
-        });
-
-        dgvLabels.Columns.Add(new DataGridViewCheckBoxColumn
-        {
-            DataPropertyName = "IsEnabled",
-            HeaderText = "Bật",
-            Width = 55
-        });
-
-        dgvLabels.Columns.Add(new DataGridViewTextBoxColumn
-        {
-            DataPropertyName = "HandlerType",
-            HeaderText = "Handler",
-            Width = 90
-        });
-
-        dgvLabels.Columns.Add(new DataGridViewCheckBoxColumn
-        {
-            DataPropertyName = "RequiresEmployeeCode",
-            HeaderText = "Cần mã NV",
-            Width = 85
-        });
-
-        dgvLabels.Columns.Add(new DataGridViewCheckBoxColumn
-        {
-            DataPropertyName = "UseBarcodeParser",
-            HeaderText = "Parse mã",
-            Width = 80
-        });
-
-        dgvLabels.Columns.Add(new DataGridViewCheckBoxColumn
-        {
-            DataPropertyName = "AppendEmployeeCode",
-            HeaderText = "Nối mã NV",
-            Width = 80
-        });
-
-        dgvLabels.Columns.Add(new DataGridViewTextBoxColumn
-        {
-            DataPropertyName = "TargetNameColumnIndex",
-            HeaderText = "Cột đích",
-            Width = 65
-        });
-
-        dgvLabels.Columns.Add(new DataGridViewTextBoxColumn
-        {
-            DataPropertyName = "TemplatePath",
-            HeaderText = "Đường dẫn template .btw",
-            Width = 280
-        });
-
-        dgvLabels.Columns.Add(new DataGridViewTextBoxColumn
-        {
-            DataPropertyName = "DataFilePath",
-            HeaderText = "Đường dẫn file data",
-            Width = 280
-        });
+        layout.Controls.Add(block, 0, row);
+        layout.SetColumnSpan(block, 3);
     }
-    #endregion
 
-    #region UI - Bottom buttons
-    private void BuildBottomButtons()
+    private static void AddField(TableLayoutPanel layout, string label, Control input, int row)
     {
-        btnSave.Text = "Lưu cấu hình";
-        btnSave.SetBounds(590, 675, 180, 42);
-        btnSave.Font = new Font("Segoe UI", 10, FontStyle.Bold);
-        btnSave.Click += BtnSave_Click;
-        Controls.Add(btnSave);
+        input.Dock = DockStyle.Fill;
+        input.Margin = new Padding(0, 3, 8, 10);
+        input.Height = 32;
+        layout.Controls.Add(AppTheme.Caption(label), 0, row);
+        layout.Controls.Add(input, 1, row);
+        layout.SetColumnSpan(input, 2);
     }
-    #endregion
 
-    #region Load / Save
+    private void AddFileField(TableLayoutPanel layout, string label, TextBox input, string buttonText, string pattern, int row)
+    {
+        input.Dock = DockStyle.Fill;
+        input.Margin = new Padding(0, 3, 8, 10);
+        var browse = new Button { Text = buttonText, Dock = DockStyle.Top, Height = 32, Margin = new Padding(0, 3, 0, 10) };
+        AppTheme.StyleSecondary(browse);
+        browse.Click += (_, _) => Browse(input, pattern);
+        var menu = new ContextMenuStrip();
+        menu.Items.Add("Mở file", null, (_, _) => OpenPath(input.Text));
+        menu.Items.Add("Mở thư mục chứa file", null, (_, _) => OpenFolder(input.Text));
+        input.ContextMenuStrip = menu;
+        layout.Controls.Add(AppTheme.Caption(label), 0, row);
+        layout.Controls.Add(input, 1, row);
+        layout.Controls.Add(browse, 2, row);
+    }
+
     private void LoadConfig()
     {
-        AppConfig config = ConfigService.Instance.Config;
-
+        loading = true;
+        var config = ConfigService.Instance.Config;
         txtBarTender.Text = config.BarTenderExe;
-        chkRememberEmployee.Checked = config.RememberEmployee;
         txtDefaultEmployee.Text = config.DefaultEmployee;
-
-        _labels = new BindingList<LabelDefinition>(
-            config.Labels
-                .Select(x => new LabelDefinition
-                {
-                    Code = x.Code,
-                    Name = x.Name,
-                    Description = x.Description,
-                    IconText = x.IconText,
-                    IsEnabled = x.IsEnabled,
-                    TemplatePath = x.TemplatePath,
-                    DataFilePath = x.DataFilePath,
-                    HandlerType = x.HandlerType,
-                    RequiresEmployeeCode = x.RequiresEmployeeCode,
-                    UseBarcodeParser = x.UseBarcodeParser,
-                    AppendEmployeeCode = x.AppendEmployeeCode,
-                    TargetNameColumnIndex = x.TargetNameColumnIndex
-                })
-                .ToList());
-
-        dgvLabels.DataSource = _labels;
+        chkRememberEmployee.Checked = config.RememberEmployee;
+        labels.Clear();
+        foreach (var item in config.Labels)
+            labels.Add(Clone(item));
+        RefreshList();
+        if (labels.Count > 0) lstLabels.SelectedIndex = 0;
+        loading = false;
+        ShowSelected();
     }
 
-    private void BtnSave_Click(object? sender, EventArgs e)
+    private void RefreshList()
     {
-        try
-        {
-            ValidateBeforeSave();
-
-            AppConfig config = ConfigService.Instance.Config;
-
-            config.BarTenderExe = txtBarTender.Text.Trim();
-            config.RememberEmployee = chkRememberEmployee.Checked;
-            config.DefaultEmployee = txtDefaultEmployee.Text.Trim();
-
-            config.Labels = _labels
-                .Select(x => new LabelDefinition
-                {
-                    Code = x.Code.Trim(),
-                    Name = x.Name.Trim(),
-                    Description = x.Description?.Trim() ?? "",
-                    IconText = x.IconText?.Trim() ?? "",
-                    IsEnabled = x.IsEnabled,
-                    TemplatePath = x.TemplatePath?.Trim() ?? "",
-                    DataFilePath = x.DataFilePath?.Trim() ?? "",
-                    HandlerType = x.HandlerType?.Trim().ToUpper() ?? "GENERIC",
-                    RequiresEmployeeCode = x.RequiresEmployeeCode,
-                    UseBarcodeParser = x.UseBarcodeParser,
-                    AppendEmployeeCode = x.AppendEmployeeCode,
-                    TargetNameColumnIndex = x.TargetNameColumnIndex <= 0 ? 5 : x.TargetNameColumnIndex
-                })
-                .ToList();
-
-            ConfigService.Instance.Save();
-
-            MessageBox.Show("Đã lưu cấu hình.", "Thông báo");
-            DialogResult = DialogResult.OK;
-            Close();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(ex.Message, "Lỗi cấu hình");
-        }
+        var selected = lstLabels.SelectedItem as LabelDefinition;
+        lstLabels.DataSource = null;
+        lstLabels.DisplayMember = nameof(LabelDefinition.DisplayName);
+        lstLabels.DataSource = labels;
+        if (selected != null) lstLabels.SelectedItem = selected;
     }
 
-    private void ValidateBeforeSave()
+    private void LabelSelectionChanged(object? sender, EventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(txtBarTender.Text))
-            throw new Exception("Vui lòng nhập đường dẫn BarTender.exe.");
-
-        if (_labels.Count == 0)
-            throw new Exception("Phải có ít nhất 1 loại tem.");
-
-        foreach (LabelDefinition label in _labels)
-        {
-            if (string.IsNullOrWhiteSpace(label.Code))
-                throw new Exception("Mỗi loại tem phải có Code.");
-
-            if (string.IsNullOrWhiteSpace(label.Name))
-                throw new Exception($"Tem [{label.Code}] chưa có Tên tem.");
-
-            if (string.IsNullOrWhiteSpace(label.HandlerType))
-                throw new Exception($"Tem [{label.Code}] chưa có HandlerType.");
-
-            if (string.IsNullOrWhiteSpace(label.TemplatePath))
-                throw new Exception($"Tem [{label.Code}] chưa có đường dẫn template.");
-
-            if (string.IsNullOrWhiteSpace(label.DataFilePath))
-                throw new Exception($"Tem [{label.Code}] chưa có đường dẫn file data.");
-        }
-
-        List<string> duplicateCodes = _labels
-            .GroupBy(x => x.Code.Trim().ToUpper())
-            .Where(g => g.Count() > 1)
-            .Select(g => g.Key)
-            .ToList();
-
-        if (duplicateCodes.Count > 0)
-            throw new Exception("Code tem bị trùng: " + string.Join(", ", duplicateCodes));
+        if (!loading) ShowSelected();
     }
-    #endregion
 
-    #region Label actions
-    private void BtnAddLabel_Click(object? sender, EventArgs e)
+    private void ShowSelected()
     {
-        _labels.Add(new LabelDefinition
+        loading = true;
+        var item = lstLabels.SelectedItem as LabelDefinition;
+        var enabled = item != null;
+        foreach (var control in new Control[] { txtCode, txtName, txtDescription, txtTemplate, txtData, cboHandler, chkEnabled, chkEmployee, chkParser, chkAppendEmployee })
+            control.Enabled = enabled;
+        if (item != null)
         {
-            Code = "NEW_LABEL",
-            Name = "Tem mới",
-            Description = "",
-            IconText = "🏷",
-            IsEnabled = true,
-            TemplatePath = "",
-            DataFilePath = "",
+            txtCode.Text = item.Code;
+            txtName.Text = item.Name;
+            txtDescription.Text = item.Description;
+            txtTemplate.Text = item.TemplatePath;
+            txtData.Text = item.DataFilePath;
+            cboHandler.SelectedItem = item.HandlerType;
+            if (cboHandler.SelectedIndex < 0) cboHandler.SelectedItem = "GENERIC";
+            chkEnabled.Checked = item.IsEnabled;
+            chkEmployee.Checked = item.RequiresEmployeeCode;
+            chkParser.Checked = item.UseBarcodeParser;
+            chkAppendEmployee.Checked = item.AppendEmployeeCode;
+        }
+        loading = false;
+        UpdateStatus();
+    }
+
+    private void UpdateSelectedFromEditor()
+    {
+        if (loading || lstLabels.SelectedItem is not LabelDefinition item) return;
+        item.Code = txtCode.Text.Trim();
+        item.Name = txtName.Text.Trim();
+        item.Description = txtDescription.Text.Trim();
+        item.TemplatePath = txtTemplate.Text.Trim();
+        item.DataFilePath = txtData.Text.Trim();
+        item.HandlerType = cboHandler.SelectedItem?.ToString() ?? "GENERIC";
+        item.IsEnabled = chkEnabled.Checked;
+        item.RequiresEmployeeCode = chkEmployee.Checked;
+        item.UseBarcodeParser = chkParser.Checked;
+        item.AppendEmployeeCode = chkAppendEmployee.Checked;
+        RefreshList();
+        UpdateStatus();
+    }
+
+    private void UpdateStatus()
+    {
+        if (lstLabels.SelectedItem is not LabelDefinition item)
+        {
+            lblStatus.Text = "Chưa có mẫu tem. Bấm “Thêm mẫu” để bắt đầu.";
+            lblStatus.BackColor = AppTheme.SurfaceMuted;
+            lblStatus.ForeColor = AppTheme.Muted;
+            return;
+        }
+        var issues = item.GetReadinessIssues();
+        lblStatus.Text = issues.Count == 0
+            ? "✓ Mẫu đã sẵn sàng để in."
+            : "Cần bổ sung: " + string.Join(" • ", issues);
+        lblStatus.BackColor = issues.Count == 0 ? Color.FromArgb(224, 243, 235) : Color.FromArgb(255, 243, 220);
+        lblStatus.ForeColor = issues.Count == 0 ? AppTheme.AccentDark : Color.FromArgb(136, 91, 22);
+    }
+
+    private void AddLabel_Click(object? sender, EventArgs e)
+    {
+        var item = new LabelDefinition
+        {
+            Code = $"LABEL_{labels.Count + 1}",
+            Name = "Mẫu tem mới",
+            Description = "Chưa có mô tả",
             HandlerType = "GENERIC",
-            RequiresEmployeeCode = false,
-            UseBarcodeParser = false,
-            AppendEmployeeCode = false,
-            TargetNameColumnIndex = 5
-        });
-    }
-
-    private void BtnDeleteLabel_Click(object? sender, EventArgs e)
-    {
-        if (dgvLabels.CurrentRow == null)
-            return;
-
-        if (dgvLabels.CurrentRow.DataBoundItem is not LabelDefinition selected)
-            return;
-
-        DialogResult rs = MessageBox.Show(
-            $"Xóa loại tem [{selected.Code}] - {selected.Name} ?",
-            "Xác nhận",
-            MessageBoxButtons.YesNo,
-            MessageBoxIcon.Question);
-
-        if (rs == DialogResult.Yes)
-        {
-            _labels.Remove(selected);
-        }
-    }
-    #endregion
-
-    #region Helpers
-    private void BrowseFile(TextBox target, string filter)
-    {
-        using OpenFileDialog dialog = new()
-        {
-            Filter = filter
+            IsEnabled = true
         };
-
-        if (dialog.ShowDialog() == DialogResult.OK)
-        {
-            target.Text = dialog.FileName;
-        }
+        labels.Add(item);
+        RefreshList();
+        lstLabels.SelectedItem = item;
+        txtName.Focus();
+        txtName.SelectAll();
     }
-    #endregion
+
+    private void RemoveLabel_Click(object? sender, EventArgs e)
+    {
+        if (lstLabels.SelectedItem is not LabelDefinition item) return;
+        var answer = MessageBox.Show(
+            $"Bỏ “{item.Name}” khỏi danh sách?\n\nFile .btw và file dữ liệu trên máy sẽ không bị xóa.",
+            "Bỏ mẫu khỏi app", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        if (answer != DialogResult.Yes) return;
+        labels.Remove(item);
+        RefreshList();
+        if (labels.Count > 0) lstLabels.SelectedIndex = 0;
+        else ShowSelected();
+    }
+
+    private void Save_Click(object? sender, EventArgs e)
+    {
+        UpdateSelectedFromEditor();
+        if (string.IsNullOrWhiteSpace(txtBarTender.Text))
+        {
+            MessageBox.Show("Hãy chọn file BarTender.exe trước khi lưu.", "Thiếu BarTender");
+            return;
+        }
+        var duplicate = labels.GroupBy(x => x.Code, StringComparer.OrdinalIgnoreCase).FirstOrDefault(x => x.Count() > 1);
+        if (duplicate != null)
+        {
+            MessageBox.Show($"Mã mẫu bị trùng: {duplicate.Key}", "Không thể lưu");
+            return;
+        }
+        ConfigService.Instance.Config.BarTenderExe = txtBarTender.Text.Trim();
+        ConfigService.Instance.Config.DefaultEmployee = txtDefaultEmployee.Text.Trim();
+        ConfigService.Instance.Config.RememberEmployee = chkRememberEmployee.Checked;
+        ConfigService.Instance.Config.Labels = labels.Select(Clone).ToList();
+        ConfigService.Instance.Save();
+        DialogResult = DialogResult.OK;
+        Close();
+    }
+
+    private static LabelDefinition Clone(LabelDefinition x) => new()
+    {
+        Code = x.Code, Name = x.Name, Description = x.Description, IconText = x.IconText,
+        IsEnabled = x.IsEnabled, TemplatePath = x.TemplatePath, DataFilePath = x.DataFilePath,
+        HandlerType = x.HandlerType, RequiresEmployeeCode = x.RequiresEmployeeCode,
+        UseBarcodeParser = x.UseBarcodeParser, AppendEmployeeCode = x.AppendEmployeeCode,
+        TargetNameColumnIndex = x.TargetNameColumnIndex
+    };
+
+    private static void Browse(TextBox target, string pattern)
+    {
+        using var dialog = new OpenFileDialog { Filter = $"File phù hợp|{pattern}|Tất cả file|*.*" };
+        if (File.Exists(target.Text)) dialog.InitialDirectory = Path.GetDirectoryName(target.Text);
+        if (dialog.ShowDialog() == DialogResult.OK) target.Text = dialog.FileName;
+    }
+
+    private static void OpenPath(string path)
+    {
+        if (!File.Exists(path)) return;
+        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+    }
+
+    private static void OpenFolder(string path)
+    {
+        var folder = File.Exists(path) ? Path.GetDirectoryName(path) : path;
+        if (!string.IsNullOrWhiteSpace(folder) && Directory.Exists(folder))
+            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
+    }
 }

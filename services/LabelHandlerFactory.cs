@@ -14,6 +14,7 @@ public class LabelHandlerFactory
             { "FULL", new FullLabelHandler() },
             { "BARCODE", new BarcodeLabelHandler() },
             { "GENERIC", new GenericLabelHandler() },
+            { "DIRECT_PRICE", new DirectPriceLabelHandler() },
             { "GLASSES", new GlassesLabelHandler() }
         };
     }

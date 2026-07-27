@@ -5,6 +5,7 @@ public class PreviewRow
     public string ProductCode { get; set; } = "";
     public string ProductName { get; set; } = "";
     public string ProductNameWithAttr { get; set; } = "";
+    public string Unit { get; set; } = "";
     public string ParsedBarcodeCode { get; set; } = "";
     public string FinalBarcodeCode { get; set; } = "";
     public double Quantity { get; set; }

@@ -3,6 +3,8 @@ obj/
 publish/
 installer_output/
 .vs/
+.dotnet-cli/
+.nuget-packages/
 
 *.exe
 *.dll

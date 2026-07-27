@@ -1,615 +1,437 @@
-
 using KiotVietLabelPrinter.Models;
 using KiotVietLabelPrinter.Services;
+using KiotVietLabelPrinter.Ui;
 
 namespace KiotVietLabelPrinter.Forms;
 
 public class FormMain : Form
 {
-    private readonly LabelService _labelService = new();
-    private readonly LabelCatalogService _catalogService = new();
-
-    // Header
-    private readonly Panel pnlHeader = new();
-    private readonly Button btnBack = new();
-    private readonly PictureBox picLogo = new();
-    private readonly Label lblTitle = new();
-    private readonly Label lblSubtitle = new();
-
-    // Home / Category
-    private readonly Panel pnlCategory = new();
-    private readonly FlowLayoutPanel flpCategories = new();
-
-    // Workspace
-    private readonly Panel pnlWorkspace = new();
-    private readonly Label lblCurrentCategory = new();
-
-    private readonly TextBox txtExcelFile = new();
-    private readonly TextBox txtEmployeeCode = new();
-
-    private readonly Button btnChooseExcel = new();
-    private readonly Button btnConfig = new();
-    private readonly Button btnHistory = new();
-     private readonly Button btnParserLab = new();
+    private readonly LabelService labelService = new();
+    private readonly LabelCatalogService catalogService = new();
+    private readonly TextBox txtExcel = new();
+    private readonly TextBox txtEmployee = new();
+    private readonly DataGridView grid = new();
+    private readonly FlowLayoutPanel templateList = new();
+    private readonly Label lblFileState = new();
+    private readonly Label lblTemplateState = new();
+    private readonly Label lblSummary = new();
+    private readonly Label lblEmployee = new();
     private readonly Button btnPreview = new();
     private readonly Button btnPrint = new();
-
-    private LabelDefinition? _selectedLabel;
+    private LabelDefinition? selectedLabel;
+    private List<ProductRow> products = new();
 
     public FormMain()
     {
-        Text = "KiotViet Label Printer";
-        Width = 980;
-        Height = 620;
+        Text = "In tem KiotViet";
+        MinimumSize = new Size(1120, 720);
+        Size = new Size(1320, 820);
         StartPosition = FormStartPosition.CenterScreen;
-        FormBorderStyle = FormBorderStyle.FixedSingle;
-        MaximizeBox = false;
-        BackColor = Color.White;
+        BackColor = AppTheme.Canvas;
+        Font = AppTheme.Body();
+        AllowDrop = true;
+        DragEnter += OnDragEnter;
+        DragDrop += OnDragDrop;
 
         BuildUi();
-        CheckConfigOnStart();
-        ShowHome();
+        RestoreLastFile();
+        ReloadTemplates();
     }
 
     private void BuildUi()
     {
-        BuildHeader();
-        BuildCategoryPanel();
-        BuildWorkspacePanel();
+        Controls.Add(BuildFooter());
+        Controls.Add(BuildBody());
+        Controls.Add(BuildHeader());
     }
 
-    #region Header
-    private void BuildHeader()
+    private Control BuildHeader()
     {
-        pnlHeader.Left = 0;
-        pnlHeader.Top = 0;
-        pnlHeader.Width = ClientSize.Width;
-        pnlHeader.Height = 110;
-        pnlHeader.BackColor = Color.FromArgb(245, 247, 250);
-        pnlHeader.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-        Controls.Add(pnlHeader);
-
-        btnBack.Text = "← Back";
-        btnBack.Left = 20;
-        btnBack.Top = 20;
-        btnBack.Width = 90;
-        btnBack.Height = 32;
-        btnBack.Visible = false;
-        btnBack.Click += (_, _) => ShowHome();
-        pnlHeader.Controls.Add(btnBack);
-
-        picLogo.Left = 130;
-        picLogo.Top = 18;
-        picLogo.Width = 64;
-        picLogo.Height = 64;
-        picLogo.SizeMode = PictureBoxSizeMode.Zoom;
-        picLogo.BorderStyle = BorderStyle.FixedSingle;
-
-        // Nếu có logo thì mở comment đoạn này:
-        // string logoPath = Path.Combine(Application.StartupPath, "Assets", "logo.png");
-        // if (File.Exists(logoPath))
-        // {
-        //     picLogo.Image = Image.FromFile(logoPath);
-        // }
-
-        pnlHeader.Controls.Add(picLogo);
-
-        lblTitle.Text = "IN TEM";
-        lblTitle.Left = 210;
-        lblTitle.Top = 18;
-        lblTitle.Width = 400;
-        lblTitle.Font = new Font("Segoe UI", 20, FontStyle.Bold);
-        pnlHeader.Controls.Add(lblTitle);
-
-        lblSubtitle.Text = "Chọn danh mục tem để bắt đầu";
-        lblSubtitle.Left = 212;
-        lblSubtitle.Top = 58;
-        lblSubtitle.Width = 600;
-        lblSubtitle.Font = new Font("Segoe UI", 10, FontStyle.Regular);
-        lblSubtitle.ForeColor = Color.DimGray;
-        pnlHeader.Controls.Add(lblSubtitle);
-    }
-    #endregion
-
-    #region Category panel
-    private void BuildCategoryPanel()
-    {
-        pnlCategory.Left = 20;
-        pnlCategory.Top = 130;
-        pnlCategory.Width = 920;
-        pnlCategory.Height = 420;
-        pnlCategory.BackColor = Color.White;
-        Controls.Add(pnlCategory);
-
-        Label lblCategoryTitle = new()
+        var header = new Panel { Dock = DockStyle.Top, Height = 92, BackColor = AppTheme.Ink };
+        header.Controls.Add(new Label
         {
-            Text = "DANH MỤC TEM",
-            Left = 10,
-            Top = 10,
-            Width = 300,
-            Font = new Font("Segoe UI", 12, FontStyle.Bold)
+            Text = "IN TEM",
+            Left = 28, Top = 14, Width = 240, Height = 40,
+            Font = AppTheme.Display(24), ForeColor = Color.White
+        });
+        header.Controls.Add(new Label
+        {
+            Text = "Chọn file → kiểm tra dữ liệu → chọn mẫu → in",
+            Left = 30, Top = 55, Width = 520, Height = 24,
+            Font = AppTheme.Body(10), ForeColor = Color.FromArgb(195, 211, 206)
+        });
+
+        var config = new Button { Text = "Mẫu tem & cài đặt", Width = 170, Height = 40, Top = 25 };
+        config.Left = header.Width - 322;
+        config.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        AppTheme.StyleSecondary(config);
+        config.Click += (_, _) =>
+        {
+            using var form = new FormConfig();
+            if (form.ShowDialog(this) == DialogResult.OK) ReloadTemplates();
         };
-        pnlCategory.Controls.Add(lblCategoryTitle);
+        header.Controls.Add(config);
 
-        Label lblHint = new()
-        {
-            Text = "Chọn loại tem cần in. Danh sách này được lấy từ cấu hình.",
-            Left = 10,
-            Top = 40,
-            Width = 700,
-            ForeColor = Color.DimGray
-        };
-        pnlCategory.Controls.Add(lblHint);
-
-        flpCategories.Left = 10;
-        flpCategories.Top = 80;
-        flpCategories.Width = 880;
-        flpCategories.Height = 300;
-        flpCategories.AutoScroll = true;
-        flpCategories.WrapContents = true;
-        flpCategories.FlowDirection = FlowDirection.LeftToRight;
-        pnlCategory.Controls.Add(flpCategories);
+        var history = new Button { Text = "Lịch sử", Width = 110, Height = 40, Top = 25 };
+        history.Left = header.Width - 136;
+        history.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        AppTheme.StyleSecondary(history);
+        history.Click += (_, _) => { using var form = new FormHistory(); form.ShowDialog(this); };
+        header.Controls.Add(history);
+        return header;
     }
 
-    private void ReloadCategories()
+    private Control BuildBody()
     {
-        flpCategories.Controls.Clear();
-
-        List<LabelDefinition> labels = _catalogService.GetAllEnabled();
-
-        if (labels.Count == 0)
+        var body = new TableLayoutPanel
         {
-            Label empty = new()
+            Dock = DockStyle.Fill,
+            Padding = new Padding(22, 18, 22, 12),
+            RowCount = 2,
+            ColumnCount = 2,
+            BackColor = AppTheme.Canvas
+        };
+        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
+        body.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 68));
+        body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32));
+
+        body.Controls.Add(BuildFileStep(), 0, 0);
+        body.SetColumnSpan(body.GetControlFromPosition(0, 0)!, 2);
+        body.Controls.Add(BuildDataPanel(), 0, 1);
+        body.Controls.Add(BuildTemplatePanel(), 1, 1);
+        return body;
+    }
+
+    private Control BuildFileStep()
+    {
+        var panel = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.Surface, Padding = new Padding(20) };
+        panel.Controls.Add(new Label
+        {
+            Text = "1  Chọn file Excel từ KiotViet",
+            Left = 18, Top = 13, Width = 330, Height = 28,
+            Font = AppTheme.Display(14), ForeColor = AppTheme.Ink
+        });
+
+        txtExcel.SetBounds(20, 52, 720, 34);
+        txtExcel.ReadOnly = true;
+        txtExcel.PlaceholderText = "Chưa chọn file .xls hoặc .xlsx";
+        panel.Controls.Add(txtExcel);
+
+        var choose = new Button { Text = "Chọn file", Width = 120, Height = 34, Left = 756, Top = 50 };
+        AppTheme.StylePrimary(choose);
+        choose.Click += (_, _) => ChooseExcel();
+        panel.Controls.Add(choose);
+
+        lblFileState.SetBounds(894, 53, 330, 36);
+        lblFileState.ForeColor = AppTheme.Muted;
+        lblFileState.Font = AppTheme.Body(9.5F, FontStyle.Bold);
+        panel.Controls.Add(lblFileState);
+        return panel;
+    }
+
+    private Control BuildDataPanel()
+    {
+        var panel = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.Surface, Margin = new Padding(0, 12, 10, 0), Padding = new Padding(18) };
+        panel.Controls.Add(new Label
+        {
+            Text = "2  Kiểm tra dữ liệu",
+            Dock = DockStyle.Top, Height = 34,
+            Font = AppTheme.Display(14), ForeColor = AppTheme.Ink
+        });
+        lblSummary.Dock = DockStyle.Top;
+        lblSummary.Height = 28;
+        lblSummary.ForeColor = AppTheme.Muted;
+        lblSummary.Text = "Dữ liệu sản phẩm sẽ hiện ở đây.";
+        panel.Controls.Add(lblSummary);
+        lblSummary.BringToFront();
+
+        grid.Dock = DockStyle.Fill;
+        grid.ReadOnly = true;
+        grid.AllowUserToAddRows = false;
+        grid.AllowUserToDeleteRows = false;
+        grid.RowHeadersVisible = false;
+        grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+        grid.MultiSelect = false;
+        grid.BackgroundColor = AppTheme.Surface;
+        grid.BorderStyle = BorderStyle.None;
+        grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+        grid.ColumnHeadersDefaultCellStyle.BackColor = AppTheme.SurfaceMuted;
+        grid.ColumnHeadersDefaultCellStyle.ForeColor = AppTheme.Ink;
+        grid.ColumnHeadersDefaultCellStyle.Font = AppTheme.Body(9F, FontStyle.Bold);
+        grid.EnableHeadersVisualStyles = false;
+        grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(218, 238, 231);
+        grid.DefaultCellStyle.SelectionForeColor = AppTheme.Ink;
+        panel.Controls.Add(grid);
+        grid.BringToFront();
+        return panel;
+    }
+
+    private Control BuildTemplatePanel()
+    {
+        var panel = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.Surface, Margin = new Padding(10, 12, 0, 0), Padding = new Padding(18) };
+        panel.Controls.Add(new Label
+        {
+            Text = "3  Chọn loại tem",
+            Dock = DockStyle.Top, Height = 34,
+            Font = AppTheme.Display(14), ForeColor = AppTheme.Ink
+        });
+        lblTemplateState.Dock = DockStyle.Bottom;
+        lblTemplateState.Height = 48;
+        lblTemplateState.Padding = new Padding(10);
+        lblTemplateState.Font = AppTheme.Body(9F, FontStyle.Bold);
+        panel.Controls.Add(lblTemplateState);
+
+        var employeePanel = new Panel { Dock = DockStyle.Bottom, Height = 70 };
+        lblEmployee.Text = "Mã nhân viên";
+        lblEmployee.SetBounds(0, 7, 130, 24);
+        txtEmployee.SetBounds(0, 34, 250, 30);
+        employeePanel.Controls.Add(lblEmployee);
+        employeePanel.Controls.Add(txtEmployee);
+        panel.Controls.Add(employeePanel);
+
+        templateList.Dock = DockStyle.Fill;
+        templateList.AutoScroll = true;
+        templateList.FlowDirection = FlowDirection.TopDown;
+        templateList.WrapContents = false;
+        templateList.Padding = new Padding(0, 6, 0, 6);
+        panel.Controls.Add(templateList);
+        templateList.BringToFront();
+        return panel;
+    }
+
+    private Control BuildFooter()
+    {
+        var footer = new Panel { Dock = DockStyle.Bottom, Height = 82, BackColor = AppTheme.Surface, Padding = new Padding(22) };
+        btnPrint.Text = "In tem";
+        btnPrint.Width = 170;
+        btnPrint.Height = 44;
+        btnPrint.Left = footer.Width - 194;
+        btnPrint.Top = 18;
+        btnPrint.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        AppTheme.StylePrimary(btnPrint);
+        btnPrint.Enabled = false;
+        btnPrint.Click += Print_Click;
+        footer.Controls.Add(btnPrint);
+
+        btnPreview.Text = "Xem trước bản in";
+        btnPreview.Width = 170;
+        btnPreview.Height = 44;
+        btnPreview.Left = btnPrint.Left - 184;
+        btnPreview.Top = 18;
+        btnPreview.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        AppTheme.StyleSecondary(btnPreview);
+        btnPreview.Enabled = false;
+        btnPreview.Click += Preview_Click;
+        footer.Controls.Add(btnPreview);
+
+        footer.Controls.Add(new Label
+        {
+            Text = "App không thay đổi file Excel gốc.",
+            Left = 24, Top = 31, Width = 400, Height = 24,
+            Font = AppTheme.Body(9.5F), ForeColor = AppTheme.Muted
+        });
+        return footer;
+    }
+
+    private void ChooseExcel()
+    {
+        using var dialog = new OpenFileDialog { Filter = "Excel KiotViet|*.xls;*.xlsx|Tất cả file|*.*" };
+        var lastFolder = ConfigService.Instance.Config.LastFolder;
+        if (Directory.Exists(lastFolder)) dialog.InitialDirectory = lastFolder;
+        if (dialog.ShowDialog(this) == DialogResult.OK) LoadExcel(dialog.FileName);
+    }
+
+    private void LoadExcel(string path)
+    {
+        try
+        {
+            products = labelService.ReadProducts(path);
+            txtExcel.Text = path;
+            grid.DataSource = products;
+            FormatGrid();
+            lblFileState.Text = $"✓ Đã đọc {products.Count:N0} sản phẩm";
+            lblFileState.ForeColor = AppTheme.AccentDark;
+            lblSummary.Text = $"{products.Count:N0} sản phẩm • Tổng số lượng {products.Sum(x => x.Quantity):N0}";
+            ConfigService.Instance.Config.LastExcelFile = path;
+            ConfigService.Instance.Config.LastFolder = Path.GetDirectoryName(path) ?? "";
+            ConfigService.Instance.Save();
+            UpdateActions();
+        }
+        catch (Exception ex)
+        {
+            products.Clear();
+            grid.DataSource = null;
+            lblFileState.Text = "Không đọc được file";
+            lblFileState.ForeColor = AppTheme.Danger;
+            MessageBox.Show(ex.Message, "Không đọc được dữ liệu", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            UpdateActions();
+        }
+    }
+
+    private void FormatGrid()
+    {
+        RenameColumn("ProductCode", "Mã hàng", 75);
+        RenameColumn("Barcode", "Mã vạch", 90);
+        RenameColumn("ProductName", "Tên hàng", 145);
+        RenameColumn("ProductNameWithAttr", "Tên hàng (thuộc tính)", 170);
+        RenameColumn("Unit", "Đơn vị tính", 65);
+        RenameColumn("Quantity", "Số lượng", 65);
+        RenameColumn("Price", "Giá bán", 75);
+        RenameColumn("Description", "Mô tả", 100);
+        if (grid.Columns["Price"] is { } price) price.DefaultCellStyle.Format = "N0";
+    }
+
+    private void RenameColumn(string name, string text, float weight)
+    {
+        if (grid.Columns[name] is not { } column) return;
+        column.HeaderText = text;
+        column.FillWeight = weight;
+    }
+
+    private void ReloadTemplates()
+    {
+        selectedLabel = null;
+        templateList.Controls.Clear();
+        foreach (var item in catalogService.GetAllEnabled())
+            templateList.Controls.Add(CreateTemplateButton(item));
+        if (templateList.Controls.Count == 0)
+        {
+            templateList.Controls.Add(new Label
             {
-                Text = "Chưa có loại tem nào được bật trong cấu hình.",
-                AutoSize = true,
-                ForeColor = Color.DarkRed,
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                Margin = new Padding(20)
-            };
-
-            flpCategories.Controls.Add(empty);
-            return;
+                Text = "Chưa có mẫu tem.\nMở “Mẫu tem & cài đặt” để thêm mẫu đầu tiên.",
+                Width = 300, Height = 70, ForeColor = AppTheme.Muted
+            });
         }
+        UpdateActions();
+    }
 
-        foreach (LabelDefinition label in labels)
+    private Control CreateTemplateButton(LabelDefinition item)
+    {
+        var issues = item.GetReadinessIssues();
+        var ready = issues.Count == 0;
+        var button = new Button
         {
-            flpCategories.Controls.Add(CreateCategoryCard(label));
+            Text = $"{item.Name}\r\n{(ready ? "Sẵn sàng" : string.Join(", ", issues))}",
+            TextAlign = ContentAlignment.MiddleLeft,
+            Width = Math.Max(280, templateList.ClientSize.Width - 28),
+            Height = 68,
+            Margin = new Padding(0, 0, 0, 9),
+            Tag = item,
+            Enabled = ready,
+            AutoEllipsis = true
+        };
+        AppTheme.StyleSecondary(button);
+        button.ForeColor = ready ? AppTheme.Ink : AppTheme.Muted;
+        button.Click += (_, _) => SelectTemplate(item, button);
+        return button;
+    }
+
+    private void SelectTemplate(LabelDefinition item, Button selectedButton)
+    {
+        selectedLabel = item;
+        foreach (Control control in templateList.Controls)
+        {
+            if (control is not Button button) continue;
+            AppTheme.StyleSecondary(button);
+        }
+        selectedButton.BackColor = Color.FromArgb(218, 238, 231);
+        selectedButton.FlatAppearance.BorderColor = AppTheme.Accent;
+        var showEmployee = item.RequiresEmployeeCode || item.AppendEmployeeCode || item.HandlerType is "BARCODE" or "GLASSES";
+        lblEmployee.Visible = showEmployee;
+        txtEmployee.Visible = showEmployee;
+        lblEmployee.Text = item.HandlerType == "GLASSES" ? "Mã màu" : "Mã nhân viên";
+        if (showEmployee && string.IsNullOrWhiteSpace(txtEmployee.Text))
+            txtEmployee.Text = ConfigService.Instance.Config.DefaultEmployee;
+        UpdateActions();
+    }
+
+    private void UpdateActions()
+    {
+        var ready = products.Count > 0 && selectedLabel != null && selectedLabel.GetReadinessIssues().Count == 0;
+        btnPreview.Enabled = ready;
+        btnPrint.Enabled = ready;
+        lblTemplateState.Text = selectedLabel == null
+            ? "Chưa chọn loại tem."
+            : ready ? $"✓ Sẽ in bằng: {selectedLabel.Name}" : "Hãy chọn file dữ liệu trước.";
+        lblTemplateState.BackColor = ready ? Color.FromArgb(224, 243, 235) : AppTheme.SurfaceMuted;
+        lblTemplateState.ForeColor = ready ? AppTheme.AccentDark : AppTheme.Muted;
+    }
+
+    private void Preview_Click(object? sender, EventArgs e)
+    {
+        if (!EnsureReady()) return;
+        using var form = new FormPreview(txtExcel.Text, selectedLabel!.Code, txtEmployee.Text.Trim());
+        form.ShowDialog(this);
+    }
+
+    private async void Print_Click(object? sender, EventArgs e)
+    {
+        if (!EnsureReady()) return;
+        var answer = MessageBox.Show(
+            $"In {products.Sum(x => x.Quantity):N0} tem bằng mẫu “{selectedLabel!.Name}”?",
+            "Xác nhận in", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        if (answer != DialogResult.Yes) return;
+
+        btnPrint.Enabled = false;
+        btnPreview.Enabled = false;
+        btnPrint.Text = "Đang in…";
+        UseWaitCursor = true;
+        try
+        {
+            var count = await Task.Run(() => labelService.Print(txtExcel.Text, selectedLabel.Code, txtEmployee.Text.Trim()));
+            MessageBox.Show($"Đã gửi lệnh in cho {count:N0} sản phẩm.", "In thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Không thể in", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            UseWaitCursor = false;
+            btnPrint.Text = "In tem";
+            UpdateActions();
         }
     }
 
-    private Control CreateCategoryCard(LabelDefinition label)
+    private bool EnsureReady()
     {
-        Panel card = new()
+        if (products.Count == 0 || selectedLabel == null)
         {
-            Width = 260,
-            Height = 150,
-            Margin = new Padding(12),
-            BackColor = Color.FromArgb(248, 249, 252),
-            BorderStyle = BorderStyle.FixedSingle,
-            Cursor = Cursors.Hand
-        };
-
-        Label lblIcon = new()
-        {
-            Text = string.IsNullOrWhiteSpace(label.IconText) ? "🏷" : label.IconText,
-            Left = 18,
-            Top = 16,
-            Width = 50,
-            Height = 40,
-            Font = new Font("Segoe UI Emoji", 20, FontStyle.Regular)
-        };
-
-        Label lblName = new()
-        {
-            Text = label.Name,
-            Left = 18,
-            Top = 60,
-            Width = 220,
-            Font = new Font("Segoe UI", 12, FontStyle.Bold)
-        };
-
-        Label lblDesc = new()
-        {
-            Text = label.Description,
-            Left = 18,
-            Top = 95,
-            Width = 220,
-            Height = 40,
-            ForeColor = Color.DimGray
-        };
-
-        card.Controls.Add(lblIcon);
-        card.Controls.Add(lblName);
-        card.Controls.Add(lblDesc);
-
-        void open(object? s, EventArgs e) => OpenLabelWorkspace(label);
-
-        card.Click += open;
-        lblIcon.Click += open;
-        lblName.Click += open;
-        lblDesc.Click += open;
-
-        return card;
-    }
-    #endregion
-
-    #region Workspace panel
-    private void BuildWorkspacePanel()
-    {
-        pnlWorkspace.Left = 20;
-        pnlWorkspace.Top = 130;
-        pnlWorkspace.Width = 920;
-        pnlWorkspace.Height = 420;
-        pnlWorkspace.BackColor = Color.White;
-        pnlWorkspace.Visible = false;
-        Controls.Add(pnlWorkspace);
-
-        lblCurrentCategory.Text = "Danh mục:";
-        lblCurrentCategory.Left = 10;
-        lblCurrentCategory.Top = 10;
-        lblCurrentCategory.Width = 700;
-        lblCurrentCategory.Font = new Font("Segoe UI", 12, FontStyle.Bold);
-        pnlWorkspace.Controls.Add(lblCurrentCategory);
-
-        Label lblExcel = new()
-        {
-            Text = "File Excel KiotViet",
-            Left = 10,
-            Top = 70,
-            Width = 140
-        };
-        pnlWorkspace.Controls.Add(lblExcel);
-
-        txtExcelFile.Left = 160;
-        txtExcelFile.Top = 66;
-        txtExcelFile.Width = 520;
-        txtExcelFile.ReadOnly = true;
-        pnlWorkspace.Controls.Add(txtExcelFile);
-
-        btnChooseExcel.Text = "Chọn file";
-        btnChooseExcel.Left = 700;
-        btnChooseExcel.Top = 64;
-        btnChooseExcel.Width = 110;
-        btnChooseExcel.Height = 32;
-        btnChooseExcel.Click += BtnChooseExcel_Click;
-        pnlWorkspace.Controls.Add(btnChooseExcel);
-
-        Label lblEmployee = new()
-        {
-            Name = "lblEmployee",
-            Text = "Mã nhân viên",
-            Left = 10,
-            Top = 125,
-            Width = 140
-        };
-        pnlWorkspace.Controls.Add(lblEmployee);
-
-        txtEmployeeCode.Left = 160;
-        txtEmployeeCode.Top = 121;
-        txtEmployeeCode.Width = 300;
-        pnlWorkspace.Controls.Add(txtEmployeeCode);
-
-        Label lblEmployeeHint = new()
-        {
-            Name = "lblEmployeeHint",
-            Text = "Ví dụ: H020 hoặc H020-K026",
-            Left = 470,
-            Top = 125,
-            Width = 260,
-            ForeColor = Color.DimGray
-        };
-        pnlWorkspace.Controls.Add(lblEmployeeHint);
-
-        Panel line = new()
-        {
-            Left = 10,
-            Top = 170,
-            Width = 860,
-            Height = 1,
-            BackColor = Color.Gainsboro
-        };
-        pnlWorkspace.Controls.Add(line);
-
-        btnConfig.Text = "Cấu hình";
-        btnConfig.Left = 60;
-        btnConfig.Top = 220;
-        btnConfig.Width = 120;
-        btnConfig.Height = 42;
-        btnConfig.Click += BtnConfig_Click;
-        pnlWorkspace.Controls.Add(btnConfig);
-
-        btnHistory.Text = "Lịch sử";
-        btnHistory.Left = 210;
-        btnHistory.Top = 220;
-        btnHistory.Width = 120;
-        btnHistory.Height = 42;
-        btnHistory.Click += BtnHistory_Click;
-        pnlWorkspace.Controls.Add(btnHistory);
-
-
-        btnParserLab.Text = "Parser Lab";
-        btnParserLab.Left = 360;
-        btnParserLab.Top = 280;
-        btnParserLab.Width = 140;
-        btnParserLab.Height = 42;
-        btnParserLab.Click += BtnParserLab_Click;
-        pnlWorkspace.Controls.Add(btnParserLab);
-
-        btnPreview.Text = "Xem trước";
-        btnPreview.Left = 360;
-        btnPreview.Top = 220;
-        btnPreview.Width = 140;
-        btnPreview.Height = 42;
-        btnPreview.Click += BtnPreview_Click;
-        pnlWorkspace.Controls.Add(btnPreview);
-
-        btnPrint.Text = "IN TEM";
-        btnPrint.Left = 530;
-        btnPrint.Top = 220;
-        btnPrint.Width = 160;
-        btnPrint.Height = 42;
-        btnPrint.Font = new Font("Segoe UI", 10, FontStyle.Bold);
-        btnPrint.Click += BtnPrint_Click;
-        pnlWorkspace.Controls.Add(btnPrint);
-    }
-    #endregion
-
-    #region Navigation
-    private void ShowHome()
-    {
-        _selectedLabel = null;
-
-        pnlCategory.Visible = true;
-        pnlWorkspace.Visible = false;
-        btnBack.Visible = false;
-
-        lblSubtitle.Text = "Chọn danh mục tem để bắt đầu";
-
-        ReloadCategories();
-    }
-
-    private void OpenLabelWorkspace(LabelDefinition label)
-    {
-        _selectedLabel = label;
-
-        pnlCategory.Visible = false;
-        pnlWorkspace.Visible = true;
-        btnBack.Visible = true;
-
-        lblSubtitle.Text = $"Danh mục: {label.Name}";
-        lblCurrentCategory.Text = $"Danh mục: {label.Name} ({label.Code})";
-
-        if (string.IsNullOrWhiteSpace(txtExcelFile.Text) &&
-            !string.IsNullOrWhiteSpace(ConfigService.Instance.Config.LastExcelFile) &&
-            File.Exists(ConfigService.Instance.Config.LastExcelFile))
-        {
-            txtExcelFile.Text = ConfigService.Instance.Config.LastExcelFile;
+            MessageBox.Show("Hãy chọn file Excel và loại tem trước.", "Chưa đủ thông tin");
+            return false;
         }
-
-        ApplyEmployeeCodeMode(label);
+        if (selectedLabel.RequiresEmployeeCode && string.IsNullOrWhiteSpace(txtEmployee.Text))
+        {
+            MessageBox.Show("Hãy nhập mã nhân viên.", "Thiếu mã nhân viên");
+            txtEmployee.Focus();
+            return false;
+        }
+        return true;
     }
 
-  private void ApplyEmployeeCodeMode(LabelDefinition label)
-{
-    Control? lblEmployee = pnlWorkspace.Controls["lblEmployee"];
-    Control? lblEmployeeHint = pnlWorkspace.Controls["lblEmployeeHint"];
-
-    bool isBarcode = label.HandlerType == "BARCODE";
-    bool isGlasses = label.HandlerType == "GLASSES";
-
-    bool showInput = label.AppendEmployeeCode || isBarcode || isGlasses;
-
-    if (lblEmployee != null)
+    private void RestoreLastFile()
     {
-        lblEmployee.Visible = showInput;
-
-        if (isGlasses)
-            lblEmployee.Text = "Mã màu";
+        var last = ConfigService.Instance.Config.LastExcelFile;
+        if (File.Exists(last)) LoadExcel(last);
         else
-            lblEmployee.Text = "Mã nhân viên";
-    }
-
-    if (lblEmployeeHint != null)
-    {
-        lblEmployeeHint.Visible = showInput;
-
-        if (isGlasses)
-            lblEmployeeHint.Text = "Ví dụ: -1, -2, -3";
-        else
-            lblEmployeeHint.Text = "Ví dụ: H020 hoặc H020-K026";
-    }
-
-    txtEmployeeCode.Visible = showInput;
-    txtEmployeeCode.Enabled = showInput;
-    txtEmployeeCode.BackColor = showInput ? Color.White : Color.Gainsboro;
-
-    if (isGlasses)
-    {
-        // Tem kính: ô này là mã màu, không load default employee
-        txtEmployeeCode.Text = "";
-        return;
-    }
-
-    if (showInput)
-    {
-        if (ConfigService.Instance.Config.RememberEmployee &&
-            !string.IsNullOrWhiteSpace(ConfigService.Instance.Config.DefaultEmployee) &&
-            string.IsNullOrWhiteSpace(txtEmployeeCode.Text))
         {
-            txtEmployeeCode.Text = ConfigService.Instance.Config.DefaultEmployee;
-        }
-    }
-    else
-    {
-        txtEmployeeCode.Text = "";
-    }
-}
-    #endregion
-
-    #region Events
-    private void CheckConfigOnStart()
-    {
-        if (!ConfigService.Instance.IsConfigured())
-        {
-            MessageBox.Show("Phần mềm chưa được cấu hình đầy đủ. Vui lòng kiểm tra cấu hình trước khi sử dụng.");
-
-            try
-            {
-                using FormConfig formConfig = new();
-                formConfig.ShowDialog();
-            }
-            catch
-            {
-                // Nếu FormConfig chưa refactor xong thì bỏ qua để app vẫn mở được
-            }
+            lblFileState.Text = "Có thể kéo-thả file vào cửa sổ";
+            lblEmployee.Visible = false;
+            txtEmployee.Visible = false;
         }
     }
 
-    private void BtnChooseExcel_Click(object? sender, EventArgs e)
+    private void OnDragEnter(object? sender, DragEventArgs e)
     {
-        string initialDir = "";
-
-        if (ConfigService.Instance.Config.AutoOpenLastFolder &&
-            !string.IsNullOrWhiteSpace(ConfigService.Instance.Config.LastFolder) &&
-            Directory.Exists(ConfigService.Instance.Config.LastFolder))
-        {
-            initialDir = ConfigService.Instance.Config.LastFolder;
-        }
-
-        using OpenFileDialog dialog = new()
-        {
-            Filter = "Excel Files|*.xls;*.xlsx"
-        };
-
-        if (!string.IsNullOrWhiteSpace(initialDir))
-            dialog.InitialDirectory = initialDir;
-
-        if (dialog.ShowDialog() == DialogResult.OK)
-        {
-            txtExcelFile.Text = dialog.FileName;
-
-            ConfigService.Instance.Config.LastExcelFile = dialog.FileName;
-
-            string? folder = Path.GetDirectoryName(dialog.FileName);
-            if (!string.IsNullOrWhiteSpace(folder))
-            {
-                ConfigService.Instance.Config.LastFolder = folder;
-                ConfigService.Instance.Save();
-            }
-        }
+        if (e.Data?.GetDataPresent(DataFormats.FileDrop) == true)
+            e.Effect = DragDropEffects.Copy;
     }
 
-    private void BtnConfig_Click(object? sender, EventArgs e)
+    private void OnDragDrop(object? sender, DragEventArgs e)
     {
-        try
-        {
-            using FormConfig formConfig = new();
-            formConfig.ShowDialog();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Form cấu hình chưa sẵn sàng hoặc đang lỗi:\n{ex.Message}", "Thông báo");
-        }
-
-        ShowHome();
+        var files = e.Data?.GetData(DataFormats.FileDrop) as string[];
+        var file = files?.FirstOrDefault(x => x.EndsWith(".xls", StringComparison.OrdinalIgnoreCase) || x.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase));
+        if (file != null) LoadExcel(file);
     }
-
-    private void BtnHistory_Click(object? sender, EventArgs e)
-    {
-        using FormHistory history = new();
-        history.ShowDialog();
-    }
-
-    private void BtnParserLab_Click(object? sender, EventArgs e)
-{
-    using FormParserLab form = new();
-    form.ShowDialog();
-}
-
-    private void BtnPreview_Click(object? sender, EventArgs e)
-    {
-        try
-        {
-            EnsureReadyToProcess();
-
-            using FormPreview preview = new(
-                txtExcelFile.Text.Trim(),
-                _selectedLabel!.Code,
-                txtEmployeeCode.Text.Trim());
-
-            preview.ShowDialog();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(ex.Message, "Lỗi");
-        }
-    }
-
-    private async void BtnPrint_Click(object? sender, EventArgs e)
-    {
-        try
-        {
-            EnsureReadyToProcess();
-
-            string sourceExcelFile = txtExcelFile.Text.Trim();
-            string labelCode = _selectedLabel!.Code;
-            string employeeCode = txtEmployeeCode.Text.Trim();
-
-            // In số lượng lớn có thể mất nhiều phút (phải chờ máy in xử lý
-            // xong từng mã trước khi in mã kế tiếp — xem BarTenderService).
-            // Chạy trên UI thread sẽ làm app "Not Responding", khiến người
-            // dùng tưởng treo rồi tắt app giữa chừng → mất tem đã in dở.
-            btnPrint.Enabled = false;
-            string originalText = btnPrint.Text;
-            btnPrint.Text = "Đang in...";
-            Cursor = Cursors.WaitCursor;
-
-            try
-            {
-                int productCount = await Task.Run(() => _labelService.Print(
-                    sourceExcelFile,
-                    labelCode,
-                    employeeCode));
-
-                MessageBox.Show($"In thành công.\nSố sản phẩm: {productCount}", "Thông báo");
-            }
-            finally
-            {
-                Cursor = Cursors.Default;
-                btnPrint.Text = originalText;
-                btnPrint.Enabled = true;
-            }
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(ex.Message, "Lỗi in tem");
-        }
-    }
-
-    private void EnsureReadyToProcess()
-    {
-        if (_selectedLabel == null)
-            throw new Exception("Vui lòng chọn danh mục tem.");
-
-        if (string.IsNullOrWhiteSpace(txtExcelFile.Text))
-            throw new Exception("Vui lòng chọn file Excel KiotViet.");
-
-        if (!File.Exists(txtExcelFile.Text.Trim()))
-            throw new Exception("Không tìm thấy file Excel đã chọn.");
-
-        if (!ConfigService.Instance.IsConfigured())
-            throw new Exception("Cấu hình chưa đầy đủ.");
-      
-
-    }
-    private void btnParserLab_Click(
-    object sender,
-    EventArgs e)
-{
-    FormParserLab form = new();
-
-    form.ShowDialog();
-}
-    #endregion
 }
