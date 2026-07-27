@@ -1,4 +1,5 @@
 using NPOI.SS.UserModel;
+using NPOI.HSSF.UserModel;
 using NPOI.XSSF.UserModel;
 using KiotVietLabelPrinter.Models;
 using System.Globalization;
@@ -8,6 +9,93 @@ namespace KiotVietLabelPrinter.Services;
 
 public class ExcelService
 {
+    private static readonly string[] DirectPriceHeaders =
+    [
+        "Tên hàng",
+        "Giá bán",
+        "Đơn vị tính"
+    ];
+
+    public void EnsureDirectPriceDataFile(string targetFile)
+    {
+        if (File.Exists(targetFile))
+            return;
+
+        WriteDirectPriceDataFile(targetFile, null);
+    }
+
+    public void WriteDirectPriceDataFile(string targetFile, ProductRow? product)
+    {
+        string? folder = Path.GetDirectoryName(targetFile);
+        if (!string.IsNullOrWhiteSpace(folder))
+            Directory.CreateDirectory(folder);
+
+        using IWorkbook workbook = OpenOrCreateDataWorkbook(targetFile);
+        ISheet sheet = workbook.NumberOfSheets > 0
+            ? workbook.GetSheetAt(0)
+            : workbook.CreateSheet("Data");
+        for (int rowIndex = sheet.LastRowNum; rowIndex >= 0; rowIndex--)
+        {
+            IRow? oldRow = sheet.GetRow(rowIndex);
+            if (oldRow != null)
+                sheet.RemoveRow(oldRow);
+        }
+        IRow header = sheet.CreateRow(0);
+
+        for (int column = 0; column < DirectPriceHeaders.Length; column++)
+        {
+            header.CreateCell(column).SetCellValue(DirectPriceHeaders[column]);
+            sheet.SetColumnWidth(column, column == 0 ? 12000 : 5000);
+        }
+
+        if (product != null)
+        {
+            IRow row = sheet.CreateRow(1);
+            string displayName = string.IsNullOrWhiteSpace(product.ProductNameWithAttr)
+                ? product.ProductName
+                : product.ProductNameWithAttr;
+            row.CreateCell(0).SetCellValue(displayName);
+            row.CreateCell(1).SetCellValue(product.Price);
+            row.CreateCell(2).SetCellValue(product.Unit);
+        }
+
+        using FileStream output = OpenDataFileWithRetry(targetFile);
+        workbook.Write(output);
+    }
+
+    private static IWorkbook OpenOrCreateDataWorkbook(string targetFile)
+    {
+        if (!File.Exists(targetFile))
+        {
+            return Path.GetExtension(targetFile).Equals(".xlsx", StringComparison.OrdinalIgnoreCase)
+                ? new XSSFWorkbook()
+                : new HSSFWorkbook();
+        }
+
+        MemoryStream memory = new();
+        using (FileStream source = new(targetFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            source.CopyTo(memory);
+        memory.Position = 0;
+        return WorkbookFactory.Create(memory);
+    }
+
+    private static FileStream OpenDataFileWithRetry(string path, int maxAttempts = 10, int delayMs = 250)
+    {
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                return new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+            }
+            catch (IOException) when (attempt < maxAttempts)
+            {
+                Thread.Sleep(delayMs);
+            }
+        }
+
+        return new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+    }
+
     private const int BarcodeColumnIndex = 5; // Cột F
 
     #region PUBLIC API CHO PROJECT MỚI

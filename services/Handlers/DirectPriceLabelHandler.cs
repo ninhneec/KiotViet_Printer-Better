@@ -1,4 +1,3 @@
-using System.Globalization;
 using KiotVietLabelPrinter.Models;
 using KiotVietLabelPrinter.Services.Interfaces;
 
@@ -7,7 +6,7 @@ namespace KiotVietLabelPrinter.Services.Handlers;
 public class DirectPriceLabelHandler : ILabelHandler
 {
     private readonly BarTenderService barTenderService = new();
-    private static readonly CultureInfo VietnameseCulture = CultureInfo.GetCultureInfo("vi-VN");
+    private readonly ExcelService excelService = new();
 
     public string HandlerType => "DIRECT_PRICE";
 
@@ -36,23 +35,15 @@ public class DirectPriceLabelHandler : ILabelHandler
     {
         if (string.IsNullOrWhiteSpace(label.TemplatePath) || !File.Exists(label.TemplatePath))
             throw new Exception($"Không tìm thấy file BarTender:\n{label.TemplatePath}");
+        if (string.IsNullOrWhiteSpace(label.DataFilePath))
+            throw new Exception("Mẫu chưa có file data trung gian.");
 
         foreach (ProductRow item in products)
         {
-            string displayName = string.IsNullOrWhiteSpace(item.ProductNameWithAttr)
-                ? item.ProductName
-                : item.ProductNameWithAttr;
-
-            Dictionary<string, string> fields = new()
-            {
-                ["Tên hàng"] = displayName,
-                ["Giá bán"] = item.Price.ToString("N0", VietnameseCulture),
-                ["Đơn vị tính"] = item.Unit
-            };
-
+            excelService.WriteDirectPriceDataFile(label.DataFilePath, item);
             int copies = Math.Max(1, (int)Math.Round(item.Quantity));
             for (int copy = 0; copy < copies; copy++)
-                barTenderService.Print(label.TemplatePath, fields);
+                barTenderService.Print(label.TemplatePath);
         }
     }
 }

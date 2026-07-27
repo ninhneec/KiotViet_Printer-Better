@@ -47,8 +47,7 @@ public class LabelDefinition
         if (string.IsNullOrWhiteSpace(TemplatePath) || !File.Exists(TemplatePath))
             issues.Add("file .btw không tồn tại");
 
-        if (!HandlerType.Equals("DIRECT_PRICE", StringComparison.OrdinalIgnoreCase) &&
-            (string.IsNullOrWhiteSpace(DataFilePath) || !File.Exists(DataFilePath)))
+        if (string.IsNullOrWhiteSpace(DataFilePath) || !File.Exists(DataFilePath))
             issues.Add("file dữ liệu không tồn tại");
 
         return issues;

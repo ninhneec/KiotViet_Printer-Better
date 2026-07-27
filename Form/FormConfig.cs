@@ -14,6 +14,7 @@ public class FormConfig : Form
     private readonly TextBox txtName = new();
     private readonly TextBox txtDescription = new();
     private readonly TextBox txtTemplate = new();
+    private readonly TextBox txtDataFile = new();
     private readonly CheckBox chkEnabled = new();
     private readonly Label lblStatus = new();
     private readonly Button btnSave = new();
@@ -44,7 +45,7 @@ public class FormConfig : Form
         });
         header.Controls.Add(new Label
         {
-            Text = "Đặt tên và chọn file BarTender. App sẽ tự lưu mẫu để dùng cho những lần sau.",
+            Text = "Mỗi mẫu dùng một file data cố định gồm: Tên hàng, Giá bán, Đơn vị tính.",
             Left = 34, Top = 57, Width = 720, Height = 24,
             Font = AppTheme.Body(10), ForeColor = Color.FromArgb(196, 211, 206)
         });
@@ -143,7 +144,7 @@ public class FormConfig : Form
             Dock = DockStyle.Top,
             AutoSize = true,
             ColumnCount = 3,
-            RowCount = 8
+            RowCount = 9
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -157,11 +158,12 @@ public class FormConfig : Form
         AddField(layout, "Mã mẫu (tự động)", txtCode, 2);
         AddField(layout, "Mô tả ngắn", txtDescription, 3);
         AddFileField(layout, "File BarTender", txtTemplate, "Chọn .btw", "*.btw", 4);
+        AddManagedDataField(layout, 5);
         chkEnabled.Text = "Hiển thị mẫu này trong app";
         chkEnabled.AutoSize = true;
         chkEnabled.CheckedChanged += (_, _) => UpdateSelectedFromEditor();
-        layout.Controls.Add(AppTheme.Caption("Hiển thị"), 0, 5);
-        layout.Controls.Add(chkEnabled, 1, 5);
+        layout.Controls.Add(AppTheme.Caption("Hiển thị"), 0, 6);
+        layout.Controls.Add(chkEnabled, 1, 6);
         var saveCurrent = new Button
         {
             Text = "Lưu mẫu này",
@@ -171,10 +173,10 @@ public class FormConfig : Form
         };
         AppTheme.StylePrimary(saveCurrent);
         saveCurrent.Click += (_, _) => PersistConfig(closeAfterSave: false);
-        layout.Controls.Add(saveCurrent, 2, 5);
+        layout.Controls.Add(saveCurrent, 2, 6);
 
-        AddTitle(layout, "BarTender", "Chọn chương trình BarTender đã cài trên máy.", 6);
-        AddFileField(layout, "BarTender.exe", txtBarTender, "Tìm ứng dụng", "*.exe", 7);
+        AddTitle(layout, "BarTender", "Chọn chương trình BarTender đã cài trên máy.", 7);
+        AddFileField(layout, "BarTender.exe", txtBarTender, "Tìm ứng dụng", "*.exe", 8);
 
         lblStatus.Dock = DockStyle.Bottom;
         lblStatus.Height = 52;
@@ -231,6 +233,35 @@ public class FormConfig : Form
         layout.Controls.Add(browse, 2, row);
     }
 
+    private void AddManagedDataField(TableLayoutPanel layout, int row)
+    {
+        txtDataFile.ReadOnly = true;
+        txtDataFile.BackColor = AppTheme.SurfaceMuted;
+        txtDataFile.Dock = DockStyle.Fill;
+        txtDataFile.Margin = new Padding(0, 3, 8, 10);
+        var choose = new Button
+        {
+            Text = "Chọn data",
+            Dock = DockStyle.Top,
+            Height = 32,
+            Margin = new Padding(0, 3, 0, 10)
+        };
+        AppTheme.StyleSecondary(choose);
+        choose.Click += (_, _) => BrowseDataFile();
+        var menu = new ContextMenuStrip();
+        menu.Items.Add("Mở file", null, (_, _) => OpenPath(txtDataFile.Text));
+        menu.Items.Add("Mở thư mục chứa file", null, (_, _) => OpenFolder(txtDataFile.Text));
+        menu.Items.Add("Dùng file app tự tạo", null, (_, _) =>
+        {
+            txtDataFile.Text = ConfigService.Instance.GetManagedDataFilePath(txtCode.Text.Trim());
+            UpdateSelectedFromEditor();
+        });
+        txtDataFile.ContextMenuStrip = menu;
+        layout.Controls.Add(AppTheme.Caption("Data cố định"), 0, row);
+        layout.Controls.Add(txtDataFile, 1, row);
+        layout.Controls.Add(choose, 2, row);
+    }
+
     private void LoadConfig()
     {
         loading = true;
@@ -264,7 +295,7 @@ public class FormConfig : Form
         loading = true;
         var item = lstLabels.SelectedItem as LabelDefinition;
         var enabled = item != null;
-        foreach (var control in new Control[] { txtCode, txtName, txtDescription, txtTemplate, chkEnabled })
+        foreach (var control in new Control[] { txtCode, txtName, txtDescription, txtTemplate, txtDataFile, chkEnabled })
             control.Enabled = enabled;
         if (item != null)
         {
@@ -272,6 +303,7 @@ public class FormConfig : Form
             txtName.Text = item.Name;
             txtDescription.Text = item.Description;
             txtTemplate.Text = item.TemplatePath;
+            txtDataFile.Text = item.DataFilePath;
             chkEnabled.Checked = item.IsEnabled;
         }
         loading = false;
@@ -285,7 +317,10 @@ public class FormConfig : Form
         item.Name = txtName.Text.Trim();
         item.Description = txtDescription.Text.Trim();
         item.TemplatePath = txtTemplate.Text.Trim();
-        item.DataFilePath = "";
+        item.DataFilePath = string.IsNullOrWhiteSpace(txtDataFile.Text)
+            ? ConfigService.Instance.GetManagedDataFilePath(item.Code)
+            : txtDataFile.Text.Trim();
+        txtDataFile.Text = item.DataFilePath;
         item.HandlerType = "DIRECT_PRICE";
         item.IsEnabled = chkEnabled.Checked;
         item.RequiresEmployeeCode = false;
@@ -337,6 +372,7 @@ public class FormConfig : Form
             Name = Path.GetFileNameWithoutExtension(dialog.FileName),
             Description = "Tên hàng, giá bán và đơn vị tính",
             TemplatePath = dialog.FileName,
+            DataFilePath = ConfigService.Instance.GetManagedDataFilePath(code),
             HandlerType = "DIRECT_PRICE",
             IsEnabled = true
         };
@@ -380,6 +416,9 @@ public class FormConfig : Form
             .Select(item =>
             {
                 item.TemplatePath = ConfigService.Instance.StoreTemplate(item.TemplatePath, item.Code);
+                if (string.IsNullOrWhiteSpace(item.DataFilePath))
+                    item.DataFilePath = ConfigService.Instance.GetManagedDataFilePath(item.Code);
+                new ExcelService().EnsureDirectPriceDataFile(item.DataFilePath);
                 return item;
             })
             .ToList();
@@ -420,6 +459,21 @@ public class FormConfig : Form
         using var dialog = new OpenFileDialog { Filter = $"File phù hợp|{pattern}|Tất cả file|*.*" };
         if (File.Exists(target.Text)) dialog.InitialDirectory = Path.GetDirectoryName(target.Text);
         if (dialog.ShowDialog() == DialogResult.OK) target.Text = dialog.FileName;
+    }
+
+    private void BrowseDataFile()
+    {
+        using OpenFileDialog dialog = new()
+        {
+            Filter = "File data BarTender|*.xls;*.xlsx|Tất cả file|*.*",
+            Title = "Chọn đúng file data mà mẫu BarTender đang kết nối"
+        };
+        if (File.Exists(txtDataFile.Text))
+            dialog.InitialDirectory = Path.GetDirectoryName(txtDataFile.Text);
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+            return;
+        txtDataFile.Text = dialog.FileName;
+        UpdateSelectedFromEditor();
     }
 
     private static void OpenPath(string path)

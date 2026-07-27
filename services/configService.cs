@@ -11,6 +11,7 @@ public class ConfigService
     private readonly string _configPath;
     public string DataDirectory { get; }
     public string TemplatesDirectory => Path.Combine(DataDirectory, "Templates");
+    public string DataFilesDirectory => Path.Combine(DataDirectory, "Data");
 
     public AppConfig Config { get; private set; } = new();
 
@@ -64,14 +65,16 @@ public class ConfigService
                 Config = CreateDefaultConfig();
             }
 
-            // Phiên bản Better chỉ dùng luồng in trực tiếp ba trường.
+            // Mỗi mẫu dùng một file data trung gian có đường dẫn cố định.
             foreach (LabelDefinition label in Config.Labels)
             {
                 label.HandlerType = "DIRECT_PRICE";
-                label.DataFilePath = "";
+                if (string.IsNullOrWhiteSpace(label.DataFilePath))
+                    label.DataFilePath = GetManagedDataFilePath(label.Code);
                 label.RequiresEmployeeCode = false;
                 label.UseBarcodeParser = false;
                 label.AppendEmployeeCode = false;
+                new ExcelService().EnsureDirectPriceDataFile(label.DataFilePath);
             }
 
             Save();
@@ -126,8 +129,18 @@ public class ConfigService
         return targetPath;
     }
 
+    public string GetManagedDataFilePath(string labelCode)
+    {
+        Directory.CreateDirectory(DataFilesDirectory);
+        string safeCode = string.Concat((string.IsNullOrWhiteSpace(labelCode) ? "PRICE_LABEL" : labelCode)
+            .Select(character => Path.GetInvalidFileNameChars().Contains(character) ? '_' : character));
+        return Path.Combine(DataFilesDirectory, $"{safeCode}_data.xls");
+    }
+
     private AppConfig CreateDefaultConfig()
     {
+        string dataFilePath = GetManagedDataFilePath("PRICE_LABEL");
+        new ExcelService().EnsureDirectPriceDataFile(dataFilePath);
         return new AppConfig
         {
             BarTenderExe = "",
@@ -145,7 +158,8 @@ public class ConfigService
                     Description = "Tên hàng, giá bán và đơn vị tính",
                     IconText = "🏷",
                     IsEnabled = true,
-                    HandlerType = "DIRECT_PRICE"
+                    HandlerType = "DIRECT_PRICE",
+                    DataFilePath = dataFilePath
                 }
             ]
         };

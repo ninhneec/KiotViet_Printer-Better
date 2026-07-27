@@ -1,6 +1,13 @@
 # KiotViet Printer Better
 
 Ứng dụng Windows giúp đọc file Excel xuất từ KiotViet và in bằng mẫu BarTender `.btw`.
+
+## Cơ chế file data cố định
+
+- App đọc file KiotViet do người dùng chọn, không phụ thuộc tên file.
+- Trước mỗi lượt in, app ghi sản phẩm hiện tại vào một file `.xls` trung gian có đường dẫn cố định.
+- File trung gian chỉ có ba cột: `Tên hàng`, `Giá bán`, `Đơn vị tính`.
+- Mẫu BarTender cần được kết nối với file trung gian này một lần. Những lần sau chỉ cần đưa file KiotViet mới vào app và in.
 Không cần KiotViet Public API.
 
 ## Luồng sử dụng
