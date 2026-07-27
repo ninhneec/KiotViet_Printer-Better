@@ -63,13 +63,18 @@ public class BarTenderService
             bool databaseBatch = recordCount is > 0 &&
                                  (namedSubStrings == null || namedSubStrings.Count == 0);
             bool hasRunningBarTender = Process.GetProcessesByName("bartend").Length > 0;
+            if (databaseBatch && hasRunningBarTender)
+                throw new Exception(
+                    "BarTender đang mở hoặc đang đứng ở cửa sổ Print.\n\n" +
+                    "Hãy đóng toàn bộ BarTender rồi bấm In lại. App không chạy " +
+                    "hai phiên cùng lúc để tránh treo máy và in lặp.");
             string arguments;
             if (databaseBatch)
             {
-                // Chế độ tương thích BarTender 10.1. /RUN tạo instance riêng nên
-                // BarTender đang mở không thể nuốt lệnh. /FP ép bật database.
-                // /X chỉ đóng instance riêng sau khi lệnh in đã được xử lý.
-                arguments = $"/RUN /AF=\"{btwFile}\" ";
+                // Chế độ tương thích BarTender 10.1. Chỉ chạy một instance để
+                // tránh tranh driver/License Server trên máy cấu hình thấp.
+                // /FP ép bật database; /X đóng sau khi xử lý xong.
+                arguments = $"/AF=\"{btwFile}\" ";
                 if (!string.IsNullOrWhiteSpace(printerName))
                     arguments += $"/PRN=\"{printerName}\" ";
                 arguments += $"/RecordRange=1-{recordCount!.Value} /FP /X";
@@ -104,7 +109,7 @@ public class BarTenderService
             stage = "Chờ BarTender xử lý";
             // In cả lô có thể cần lâu hơn trên máy yếu. Luồng này chạy trong
             // Task nền nên giao diện vẫn phản hồi trong lúc chờ BarTender.
-            bool exited = process.WaitForExit(180000);
+            bool exited = process.WaitForExit(databaseBatch ? 60000 : 180000);
             if (!exited)
                 throw new Exception(
                     "BarTender chưa phản hồi trong thời gian cho phép. " +
@@ -121,7 +126,12 @@ public class BarTenderService
                     "BarTender nhận lệnh nhưng từ chối tạo job in.\n\n" +
                     $"STDERR:\n{stdErr}\n\nSTDOUT:\n{stdOut}");
 
-            if (!string.IsNullOrWhiteSpace(printerName))
+            if (databaseBatch)
+            {
+                // /X chỉ trả về sau khi BarTender xử lý xong lệnh. Không chờ thêm
+                // 8 giây ở spooler vì khoảng chờ này làm app có cảm giác bị treo.
+            }
+            else if (!string.IsNullOrWhiteSpace(printerName))
             {
                 stage = "Chờ hàng đợi máy in";
                 WaitForPrintJobToFinish(printerName);
