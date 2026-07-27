@@ -161,6 +161,11 @@ public class ConfigService
 
     private static string ResolveWindowsShortcut(string shortcutPath)
     {
+        string installerTarget = ResolveAdvertisedInstallerShortcut(shortcutPath);
+        if (File.Exists(installerTarget) &&
+            Path.GetFileName(installerTarget).Equals("bartend.exe", StringComparison.OrdinalIgnoreCase))
+            return installerTarget;
+
         object? shell = null;
         object? shortcut = null;
         try
@@ -193,6 +198,56 @@ public class ConfigService
                 System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell);
         }
     }
+
+    private static string ResolveAdvertisedInstallerShortcut(string shortcutPath)
+    {
+        try
+        {
+            System.Text.StringBuilder productCode = new(39);
+            System.Text.StringBuilder featureId = new(256);
+            System.Text.StringBuilder componentCode = new(39);
+            uint result = MsiGetShortcutTarget(
+                shortcutPath,
+                productCode,
+                featureId,
+                componentCode);
+            if (result != 0 || productCode.Length == 0 || componentCode.Length == 0)
+                return "";
+
+            uint pathLength = 2048;
+            System.Text.StringBuilder componentPath = new((int)pathLength);
+            int state = MsiGetComponentPath(
+                productCode.ToString(),
+                componentCode.ToString(),
+                componentPath,
+                ref pathLength);
+            return state is 3 or 4 && componentPath.Length > 0
+                ? componentPath.ToString()
+                : "";
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport(
+        "msi.dll",
+        CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern uint MsiGetShortcutTarget(
+        string shortcutTarget,
+        System.Text.StringBuilder productCode,
+        System.Text.StringBuilder featureId,
+        System.Text.StringBuilder componentCode);
+
+    [System.Runtime.InteropServices.DllImport(
+        "msi.dll",
+        CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern int MsiGetComponentPath(
+        string productCode,
+        string componentCode,
+        System.Text.StringBuilder pathBuffer,
+        ref uint pathBufferLength);
 
     public IReadOnlyList<string> FindBarTenderExecutables()
     {
