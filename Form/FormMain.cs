@@ -7,6 +7,7 @@ namespace KiotVietLabelPrinter.Forms;
 public class FormMain : Form
 {
     private readonly LabelService labelService = new();
+    private readonly ExcelService excelService = new();
     private readonly LabelCatalogService catalogService = new();
     private readonly TextBox txtExcel = new();
     private readonly TextBox txtEmployee = new();
@@ -19,9 +20,15 @@ public class FormMain : Form
     private readonly Button btnPreview = new();
     private readonly Button btnPrint = new();
     private readonly Label lblZoom = new();
+    private readonly TrackBar zoomSlider = new();
+    private readonly Dictionary<string, int> baseColumnWidths = new();
+    private readonly Stack<CellEdit> undoStack = new();
+    private object? valueBeforeEdit;
+    private bool applyingUndo;
     private LabelDefinition? selectedLabel;
     private List<ProductRow> products = new();
     private int zoomPercent = 100;
+    private sealed record CellEdit(int RowIndex, int ColumnIndex, object? PreviousValue);
 
     public FormMain()
     {
@@ -157,6 +164,16 @@ public class FormMain : Form
         };
         var zoomIn = new Button { Text = "+", Width = 36, Height = 30 };
         var zoomOut = new Button { Text = "−", Width = 36, Height = 30 };
+        zoomSlider.Minimum = 50;
+        zoomSlider.Maximum = 200;
+        zoomSlider.TickFrequency = 25;
+        zoomSlider.SmallChange = 10;
+        zoomSlider.LargeChange = 25;
+        zoomSlider.Value = 100;
+        zoomSlider.Width = 150;
+        zoomSlider.Height = 34;
+        zoomSlider.TickStyle = TickStyle.None;
+        zoomSlider.ValueChanged += (_, _) => SetZoom(zoomSlider.Value);
         AppTheme.StyleSecondary(zoomIn);
         AppTheme.StyleSecondary(zoomOut);
         lblZoom.Text = "100%";
@@ -168,6 +185,7 @@ public class FormMain : Form
         lblZoom.Click += (_, _) => SetZoom(100);
         zoomBar.Controls.Add(zoomIn);
         zoomBar.Controls.Add(lblZoom);
+        zoomBar.Controls.Add(zoomSlider);
         zoomBar.Controls.Add(zoomOut);
         zoomBar.Controls.Add(new Label
         {
@@ -177,6 +195,14 @@ public class FormMain : Form
             TextAlign = ContentAlignment.MiddleRight,
             ForeColor = AppTheme.Muted
         });
+        var saveExcel = new Button { Text = "Lưu Excel mới", Width = 118, Height = 30 };
+        var deleteRows = new Button { Text = "Xóa dòng", Width = 92, Height = 30 };
+        AppTheme.StyleSecondary(saveExcel);
+        AppTheme.StyleSecondary(deleteRows);
+        saveExcel.Click += (_, _) => SaveEditedExcel();
+        deleteRows.Click += (_, _) => DeleteSelectedRows();
+        zoomBar.Controls.Add(saveExcel);
+        zoomBar.Controls.Add(deleteRows);
         panel.Controls.Add(zoomBar);
         zoomBar.BringToFront();
 
@@ -185,11 +211,11 @@ public class FormMain : Form
         grid.AllowUserToAddRows = false;
         grid.AllowUserToDeleteRows = false;
         grid.RowHeadersVisible = false;
-        grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-        grid.MultiSelect = false;
+        grid.SelectionMode = DataGridViewSelectionMode.CellSelect;
+        grid.MultiSelect = true;
         grid.BackgroundColor = AppTheme.Surface;
         grid.BorderStyle = BorderStyle.None;
-        grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+        grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
         grid.ColumnHeadersDefaultCellStyle.BackColor = AppTheme.SurfaceMuted;
         grid.ColumnHeadersDefaultCellStyle.ForeColor = AppTheme.Ink;
         grid.ColumnHeadersDefaultCellStyle.Font = AppTheme.Body(9F, FontStyle.Bold);
@@ -197,8 +223,14 @@ public class FormMain : Form
         grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(218, 238, 231);
         grid.DefaultCellStyle.SelectionForeColor = AppTheme.Ink;
         grid.CellValidating += Grid_CellValidating;
-        grid.CellEndEdit += (_, _) => UpdateSummary();
+        grid.CellBeginEdit += (_, e) => valueBeforeEdit = grid[e.ColumnIndex, e.RowIndex].Value;
+        grid.CellEndEdit += Grid_CellEndEdit;
         grid.MouseWheel += Grid_MouseWheel;
+        grid.KeyDown += Grid_KeyDown;
+        grid.ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableWithoutHeaderText;
+        grid.DataBindingComplete += (_, _) => RefreshRowNumbers();
+        grid.RowHeadersVisible = true;
+        grid.RowHeadersWidth = 54;
         panel.Controls.Add(grid);
         grid.BringToFront();
         return panel;
@@ -300,14 +332,15 @@ public class FormMain : Form
 
     private void FormatGrid()
     {
-        RenameColumn("ProductCode", "Mã hàng", 75);
-        RenameColumn("Barcode", "Mã vạch", 90);
-        RenameColumn("ProductName", "Tên hàng", 145);
-        RenameColumn("ProductNameWithAttr", "Tên hàng (thuộc tính)", 170);
-        RenameColumn("Unit", "Đơn vị tính", 65);
-        RenameColumn("Quantity", "Số lượng", 65);
-        RenameColumn("Price", "Giá bán", 75);
-        RenameColumn("Description", "Mô tả", 100);
+        foreach (DataGridViewColumn column in grid.Columns)
+            column.Visible = false;
+
+        RenameColumn("ProductCode", "Mã hàng", 130);
+        RenameColumn("ProductNameWithAttr", "Tên in trên tem", 360);
+        RenameColumn("Unit", "Đơn vị tính", 110);
+        RenameColumn("Quantity", "Số lượng", 100);
+        RenameColumn("Price", "Giá bán", 130);
+
         foreach (DataGridViewColumn column in grid.Columns)
             column.ReadOnly = true;
 
@@ -316,19 +349,19 @@ public class FormMain : Form
         SetEditable("Quantity");
         SetEditable("Price");
 
-        if (grid.Columns["ProductName"] is { } productName)
-            productName.Visible = false;
-        if (grid.Columns["ProductNameWithAttr"] is { } printName)
-            printName.HeaderText = "Tên in trên tem";
         if (grid.Columns["Price"] is { } price) price.DefaultCellStyle.Format = "N0";
+        baseColumnWidths.Clear();
+        foreach (DataGridViewColumn column in grid.Columns.Cast<DataGridViewColumn>().Where(column => column.Visible))
+            baseColumnWidths[column.Name] = column.Width;
         SetZoom(zoomPercent);
     }
 
-    private void RenameColumn(string name, string text, float weight)
+    private void RenameColumn(string name, string text, int width)
     {
         if (grid.Columns[name] is not { } column) return;
+        column.Visible = true;
         column.HeaderText = text;
-        column.FillWeight = weight;
+        column.Width = width;
     }
 
     private void SetEditable(string columnName)
@@ -369,14 +402,302 @@ public class FormMain : Form
 
     private void SetZoom(int percent)
     {
-        zoomPercent = Math.Clamp(percent, 70, 180);
+        zoomPercent = Math.Clamp(percent, 50, 200);
         lblZoom.Text = $"{zoomPercent}%";
+        if (zoomSlider.Value != zoomPercent)
+            zoomSlider.Value = zoomPercent;
         float scale = zoomPercent / 100F;
         grid.DefaultCellStyle.Font = AppTheme.Body(9.5F * scale);
         grid.ColumnHeadersDefaultCellStyle.Font = AppTheme.Body(9F * scale, FontStyle.Bold);
+        grid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+        grid.ColumnHeadersHeight = Math.Max(28, (int)(34 * scale));
         grid.RowTemplate.Height = Math.Max(24, (int)(28 * scale));
+        foreach ((string name, int width) in baseColumnWidths)
+        {
+            if (grid.Columns[name] is { } column)
+                column.Width = Math.Max(55, (int)(width * scale));
+        }
         foreach (DataGridViewRow row in grid.Rows)
             row.Height = grid.RowTemplate.Height;
+    }
+
+    private void RefreshRowNumbers()
+    {
+        for (int index = 0; index < grid.Rows.Count; index++)
+            grid.Rows[index].HeaderCell.Value = (index + 1).ToString();
+    }
+
+    private void Grid_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Control && e.KeyCode == Keys.V)
+        {
+            PasteClipboard();
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            return;
+        }
+
+        if (e.Control && e.KeyCode == Keys.Z)
+        {
+            UndoLastEdit();
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            return;
+        }
+
+        if (e.Control && e.KeyCode == Keys.D)
+        {
+            FillSelection(down: true);
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            return;
+        }
+
+        if (e.Control && e.KeyCode == Keys.R)
+        {
+            FillSelection(down: false);
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            return;
+        }
+
+        if (e.Control && e.KeyCode == Keys.S)
+        {
+            SaveEditedExcel();
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            return;
+        }
+
+        if (e.KeyCode == Keys.Delete)
+        {
+            ClearSelectedCells();
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+        }
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (!grid.ContainsFocus)
+            return base.ProcessCmdKey(ref msg, keyData);
+
+        if (keyData is Keys.Enter or (Keys.Shift | Keys.Enter))
+        {
+            int direction = keyData == Keys.Enter ? 1 : -1;
+            int row = grid.CurrentCell?.RowIndex ?? 0;
+            int column = grid.CurrentCell?.ColumnIndex ?? 0;
+            grid.EndEdit();
+            int nextRow = Math.Clamp(row + direction, 0, Math.Max(0, grid.Rows.Count - 1));
+            if (grid.Rows.Count > 0)
+                grid.CurrentCell = grid[column, nextRow];
+            return true;
+        }
+
+        if (keyData == Keys.F2 && grid.CurrentCell is { ReadOnly: false })
+        {
+            grid.BeginEdit(true);
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.D0) || keyData == (Keys.Control | Keys.NumPad0))
+        {
+            SetZoom(100);
+            return true;
+        }
+
+        if (keyData is (Keys.Control | Keys.Add) or (Keys.Control | Keys.Oemplus))
+        {
+            SetZoom(zoomPercent + 10);
+            return true;
+        }
+
+        if (keyData is (Keys.Control | Keys.Subtract) or (Keys.Control | Keys.OemMinus))
+        {
+            SetZoom(zoomPercent - 10);
+            return true;
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private void Grid_CellEndEdit(object? sender, DataGridViewCellEventArgs e)
+    {
+        object? newValue = grid[e.ColumnIndex, e.RowIndex].Value;
+        if (!applyingUndo && !Equals(valueBeforeEdit, newValue))
+            undoStack.Push(new CellEdit(e.RowIndex, e.ColumnIndex, valueBeforeEdit));
+        valueBeforeEdit = null;
+        UpdateSummary();
+    }
+
+    private void RememberCell(DataGridViewCell cell)
+    {
+        if (!applyingUndo)
+            undoStack.Push(new CellEdit(cell.RowIndex, cell.ColumnIndex, cell.Value));
+    }
+
+    private void UndoLastEdit()
+    {
+        if (!undoStack.TryPop(out CellEdit? edit))
+            return;
+        if (edit.RowIndex >= grid.Rows.Count || edit.ColumnIndex >= grid.Columns.Count)
+            return;
+
+        applyingUndo = true;
+        try
+        {
+            grid[edit.ColumnIndex, edit.RowIndex].Value = edit.PreviousValue;
+            grid.EndEdit();
+            grid.CurrentCell = grid[edit.ColumnIndex, edit.RowIndex];
+        }
+        finally
+        {
+            applyingUndo = false;
+        }
+        UpdateSummary();
+    }
+
+    private void ClearSelectedCells()
+    {
+        foreach (DataGridViewCell cell in grid.SelectedCells.Cast<DataGridViewCell>())
+        {
+            if (cell.ReadOnly)
+                continue;
+            RememberCell(cell);
+            string name = grid.Columns[cell.ColumnIndex].Name;
+            cell.Value = name is "Quantity" or "Price" ? 0D : "";
+        }
+        grid.EndEdit();
+        UpdateSummary();
+    }
+
+    private void FillSelection(bool down)
+    {
+        List<DataGridViewCell> cells = grid.SelectedCells
+            .Cast<DataGridViewCell>()
+            .Where(cell => !cell.ReadOnly)
+            .ToList();
+        if (cells.Count < 2)
+            return;
+
+        if (down)
+        {
+            foreach (IGrouping<int, DataGridViewCell> column in cells.GroupBy(cell => cell.ColumnIndex))
+            {
+                DataGridViewCell source = column.OrderBy(cell => cell.RowIndex).First();
+                foreach (DataGridViewCell target in column.Where(cell => cell.RowIndex != source.RowIndex))
+                {
+                    RememberCell(target);
+                    target.Value = source.Value;
+                }
+            }
+        }
+        else
+        {
+            foreach (IGrouping<int, DataGridViewCell> row in cells.GroupBy(cell => cell.RowIndex))
+            {
+                DataGridViewCell source = row.OrderBy(cell => cell.ColumnIndex).First();
+                foreach (DataGridViewCell target in row.Where(cell => cell.ColumnIndex != source.ColumnIndex))
+                {
+                    RememberCell(target);
+                    target.Value = source.Value;
+                }
+            }
+        }
+
+        grid.EndEdit();
+        UpdateSummary();
+    }
+
+    private void PasteClipboard()
+    {
+        if (grid.CurrentCell == null || !Clipboard.ContainsText())
+            return;
+
+        string[] rows = Clipboard.GetText().Replace("\r", "").Split('\n');
+        int startRow = grid.CurrentCell.RowIndex;
+        int startColumn = grid.CurrentCell.ColumnIndex;
+
+        for (int rowOffset = 0; rowOffset < rows.Length; rowOffset++)
+        {
+            if (string.IsNullOrEmpty(rows[rowOffset]) || startRow + rowOffset >= grid.Rows.Count)
+                continue;
+
+            string[] values = rows[rowOffset].Split('\t');
+            for (int columnOffset = 0; columnOffset < values.Length; columnOffset++)
+            {
+                int targetColumn = startColumn + columnOffset;
+                if (targetColumn >= grid.Columns.Count)
+                    break;
+
+                DataGridViewCell cell = grid[targetColumn, startRow + rowOffset];
+                if (cell.ReadOnly || !grid.Columns[targetColumn].Visible)
+                    continue;
+
+                string columnName = grid.Columns[targetColumn].Name;
+                if (columnName is "Quantity" or "Price")
+                {
+                    if (double.TryParse(values[columnOffset], out double number) && number >= 0)
+                    {
+                        RememberCell(cell);
+                        cell.Value = number;
+                    }
+                }
+                else
+                {
+                    RememberCell(cell);
+                    cell.Value = values[columnOffset];
+                }
+            }
+        }
+
+        grid.EndEdit();
+        UpdateSummary();
+    }
+
+    private void DeleteSelectedRows()
+    {
+        List<ProductRow> selected = grid.SelectedCells
+            .Cast<DataGridViewCell>()
+            .Select(cell => grid.Rows[cell.RowIndex].DataBoundItem)
+            .OfType<ProductRow>()
+            .Distinct()
+            .ToList();
+
+        if (selected.Count == 0)
+            return;
+
+        foreach (ProductRow item in selected)
+            products.Remove(item);
+
+        grid.DataSource = null;
+        grid.DataSource = products;
+        FormatGrid();
+        UpdateSummary();
+    }
+
+    private void SaveEditedExcel()
+    {
+        if (products.Count == 0)
+            return;
+
+        using SaveFileDialog dialog = new()
+        {
+            Filter = "Excel Workbook|*.xlsx",
+            FileName = $"DuLieuInTem_{DateTime.Now:yyyyMMdd_HHmm}.xlsx",
+            Title = "Lưu dữ liệu đã sửa"
+        };
+
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+            return;
+
+        grid.EndEdit();
+        excelService.ExportProducts(dialog.FileName, products);
+        MessageBox.Show(
+            $"Đã lưu file:\n{dialog.FileName}",
+            "Đã lưu dữ liệu",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
     }
 
     private void UpdateSummary()

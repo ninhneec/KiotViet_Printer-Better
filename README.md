@@ -38,7 +38,15 @@ Chế độ này không cần chọn file data trung gian.
 
 - Các ô màu vàng có thể sửa trước khi xem trước hoặc in.
 - Có thể sửa tên in trên tem, đơn vị tính, số lượng và giá bán.
-- Dùng nút `−` / `+` hoặc giữ `Ctrl` và lăn chuột để zoom từ 70% đến 180%.
+- Chọn nhiều ô, dùng `Ctrl+C` / `Ctrl+V` để sao chép và dán như Excel.
+- Dùng phím mũi tên để chuyển ô; `Enter` xác nhận nội dung và xuống dòng, `Shift+Enter` đi lên, `F2` sửa ô hiện tại.
+- `Delete` xóa nội dung ô đã chọn, `Ctrl+Z` hoàn tác lần sửa gần nhất.
+- `Ctrl+D` điền nội dung ô trên xuống vùng chọn, `Ctrl+R` điền nội dung ô bên trái sang vùng chọn.
+- `Ctrl+S` lưu dữ liệu đã sửa thành file Excel mới.
+- Có thể xóa các dòng đã chọn hoặc lưu dữ liệu đã sửa thành file `.xlsx` mới.
+- Dùng thanh trượt, nút `−` / `+` hoặc giữ `Ctrl` và lăn chuột để zoom từ 50% đến 200%.
+- Có thể dùng `Ctrl++`, `Ctrl+-` và `Ctrl+0` để tăng, giảm hoặc đặt lại zoom 100%.
+- Zoom thay đổi cả chữ, chiều rộng cột, chiều cao dòng và tiêu đề; khi phóng lớn bảng có thanh cuộn ngang như Excel.
 - App không ghi đè file Excel gốc.
 
 ## Lưu cấu hình

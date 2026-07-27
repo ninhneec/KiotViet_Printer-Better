@@ -1,4 +1,5 @@
 using NPOI.SS.UserModel;
+using NPOI.XSSF.UserModel;
 using KiotVietLabelPrinter.Models;
 using System.Globalization;
 using System.Text;
@@ -138,6 +139,42 @@ public class ExcelService
     public void WriteBarcodeLikeData(string sourceFile, string targetFile, string employeeCode)
     {
         CopyToBarTenderData(sourceFile, targetFile, true, employeeCode);
+    }
+
+    public void ExportProducts(string targetFile, IEnumerable<ProductRow> products)
+    {
+        using IWorkbook workbook = new XSSFWorkbook();
+        ISheet sheet = workbook.CreateSheet("Dữ liệu in tem");
+        string[] headers =
+        [
+            "Mã hàng",
+            "Tên hàng",
+            "Tên in trên tem",
+            "Đơn vị tính",
+            "Số lượng",
+            "Giá bán"
+        ];
+
+        IRow header = sheet.CreateRow(0);
+        for (int column = 0; column < headers.Length; column++)
+            header.CreateCell(column).SetCellValue(headers[column]);
+
+        int rowIndex = 1;
+        foreach (ProductRow product in products)
+        {
+            IRow row = sheet.CreateRow(rowIndex++);
+            row.CreateCell(0).SetCellValue(product.ProductCode);
+            row.CreateCell(1).SetCellValue(product.ProductName);
+            row.CreateCell(2).SetCellValue(product.ProductNameWithAttr);
+            row.CreateCell(3).SetCellValue(product.Unit);
+            row.CreateCell(4).SetCellValue(product.Quantity);
+            row.CreateCell(5).SetCellValue(product.Price);
+        }
+
+        for (int column = 0; column < headers.Length; column++)
+            sheet.AutoSizeColumn(column);
+
+        SaveWorkbook(workbook, targetFile);
     }
 
     #endregion

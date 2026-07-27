@@ -110,7 +110,7 @@ public class FormConfig : Form
             Dock = DockStyle.Bottom, Height = 48,
             FlowDirection = FlowDirection.LeftToRight
         };
-        var add = new Button { Text = "+ Thêm mẫu", Width = 122, Height = 36 };
+        var add = new Button { Text = "+ Nhập mẫu", Width = 122, Height = 36 };
         var remove = new Button { Text = "Bỏ khỏi app", Width = 122, Height = 36 };
         AppTheme.StylePrimary(add);
         AppTheme.StyleSecondary(remove);
@@ -162,6 +162,16 @@ public class FormConfig : Form
         chkEnabled.CheckedChanged += (_, _) => UpdateSelectedFromEditor();
         layout.Controls.Add(AppTheme.Caption("Hiển thị"), 0, 5);
         layout.Controls.Add(chkEnabled, 1, 5);
+        var saveCurrent = new Button
+        {
+            Text = "Lưu mẫu này",
+            Dock = DockStyle.Top,
+            Height = 34,
+            Margin = new Padding(0, 0, 0, 8)
+        };
+        AppTheme.StylePrimary(saveCurrent);
+        saveCurrent.Click += (_, _) => PersistConfig(closeAfterSave: false);
+        layout.Controls.Add(saveCurrent, 2, 5);
 
         AddTitle(layout, "BarTender", "Chọn chương trình BarTender đã cài trên máy.", 6);
         AddFileField(layout, "BarTender.exe", txtBarTender, "Tìm ứng dụng", "*.exe", 7);
@@ -304,11 +314,29 @@ public class FormConfig : Form
 
     private void AddLabel_Click(object? sender, EventArgs e)
     {
+        using OpenFileDialog dialog = new()
+        {
+            Filter = "Mẫu BarTender|*.btw",
+            Title = "Chọn file mẫu BarTender"
+        };
+
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+            return;
+
+        string baseCode = Path.GetFileNameWithoutExtension(dialog.FileName)
+            .ToUpperInvariant()
+            .Replace(" ", "_");
+        string code = baseCode;
+        int suffix = 2;
+        while (labels.Any(item => item.Code.Equals(code, StringComparison.OrdinalIgnoreCase)))
+            code = $"{baseCode}_{suffix++}";
+
         var item = new LabelDefinition
         {
-            Code = $"LABEL_{labels.Count + 1}",
-            Name = "Mẫu tem mới",
-            Description = "Chưa có mô tả",
+            Code = code,
+            Name = Path.GetFileNameWithoutExtension(dialog.FileName),
+            Description = "Tên hàng, giá bán và đơn vị tính",
+            TemplatePath = dialog.FileName,
             HandlerType = "DIRECT_PRICE",
             IsEnabled = true
         };
@@ -334,6 +362,11 @@ public class FormConfig : Form
 
     private void Save_Click(object? sender, EventArgs e)
     {
+        PersistConfig(closeAfterSave: true);
+    }
+
+    private void PersistConfig(bool closeAfterSave)
+    {
         UpdateSelectedFromEditor();
         var duplicate = labels.GroupBy(x => x.Code, StringComparer.OrdinalIgnoreCase).FirstOrDefault(x => x.Count() > 1);
         if (duplicate != null)
@@ -351,8 +384,26 @@ public class FormConfig : Form
             })
             .ToList();
         ConfigService.Instance.Save();
-        DialogResult = DialogResult.OK;
-        Close();
+
+        if (closeAfterSave)
+        {
+            DialogResult = DialogResult.OK;
+            Close();
+            return;
+        }
+
+        loading = true;
+        labels.Clear();
+        foreach (LabelDefinition item in ConfigService.Instance.Config.Labels)
+            labels.Add(Clone(item));
+        RefreshList();
+        if (labels.Count > 0)
+            lstLabels.SelectedIndex = 0;
+        loading = false;
+        ShowSelected();
+        lblStatus.Text = "✓ Đã lưu mẫu vào máy. Có thể đóng cửa sổ và sử dụng ngay.";
+        lblStatus.BackColor = Color.FromArgb(224, 243, 235);
+        lblStatus.ForeColor = AppTheme.AccentDark;
     }
 
     private static LabelDefinition Clone(LabelDefinition x) => new()
