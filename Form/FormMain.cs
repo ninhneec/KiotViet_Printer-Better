@@ -516,6 +516,13 @@ public class FormMain : Form
         if (!grid.ContainsFocus)
             return base.ProcessCmdKey(ref msg, keyData);
 
+        if (!grid.IsCurrentCellInEditMode &&
+            keyData is Keys.Left or Keys.Right or Keys.Up or Keys.Down)
+        {
+            MoveCurrentCell(keyData);
+            return true;
+        }
+
         if (keyData is Keys.Enter or (Keys.Shift | Keys.Enter))
         {
             int direction = keyData == Keys.Enter ? 1 : -1;
@@ -553,6 +560,35 @@ public class FormMain : Form
         }
 
         return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private void MoveCurrentCell(Keys direction)
+    {
+        if (grid.CurrentCell == null || grid.Rows.Count == 0)
+            return;
+
+        int row = grid.CurrentCell.RowIndex;
+        int column = grid.CurrentCell.ColumnIndex;
+
+        if (direction == Keys.Up)
+            row = Math.Max(0, row - 1);
+        else if (direction == Keys.Down)
+            row = Math.Min(grid.Rows.Count - 1, row + 1);
+        else
+        {
+            int step = direction == Keys.Left ? -1 : 1;
+            int candidate = column + step;
+            while (candidate >= 0 && candidate < grid.Columns.Count &&
+                   !grid.Columns[candidate].Visible)
+            {
+                candidate += step;
+            }
+
+            if (candidate >= 0 && candidate < grid.Columns.Count)
+                column = candidate;
+        }
+
+        grid.CurrentCell = grid[column, row];
     }
 
     private void Grid_CellEndEdit(object? sender, DataGridViewCellEventArgs e)
@@ -758,7 +794,10 @@ public class FormMain : Form
         {
             List<Button> buttons = templateList.Controls.OfType<Button>().ToList();
             if (buttons.Count == 1)
-                buttons[0].PerformClick();
+            {
+                LabelDefinition onlyTemplate = (LabelDefinition)buttons[0].Tag!;
+                SelectTemplate(onlyTemplate, buttons[0]);
+            }
         }
         UpdateActions();
     }

@@ -259,8 +259,9 @@ public class ExcelService
             row.CreateCell(5).SetCellValue(product.Price);
         }
 
-        for (int column = 0; column < headers.Length; column++)
-            sheet.AutoSizeColumn(column);
+        int[] widths = [18, 32, 42, 16, 14, 18];
+        for (int column = 0; column < widths.Length; column++)
+            sheet.SetColumnWidth(column, widths[column] * 256);
 
         SaveWorkbook(workbook, targetFile);
     }

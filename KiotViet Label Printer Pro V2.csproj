@@ -16,6 +16,8 @@
     <PackageReference Include="NPOI" Version="2.8.0" />
   </ItemGroup>
   <ItemGroup>
+  <Compile Remove="tests\**\*.cs" />
+  <None Include="tests\**\*" />
   <None Update="Config\**\*">
     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>

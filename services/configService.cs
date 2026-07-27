@@ -17,9 +17,12 @@ public class ConfigService
 
     private ConfigService()
     {
-        DataDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "KiotVietPrinterBetter");
+        string? overrideDirectory = Environment.GetEnvironmentVariable("KIOTVIET_TEST_DATA_DIRECTORY");
+        DataDirectory = string.IsNullOrWhiteSpace(overrideDirectory)
+            ? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "KiotVietPrinterBetter")
+            : Path.GetFullPath(overrideDirectory);
         _configPath = Path.Combine(DataDirectory, "config.json");
 
         Load();
