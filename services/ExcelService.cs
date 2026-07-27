@@ -99,7 +99,7 @@ public class ExcelService
         HashSet<string> normalizedAliases = aliases
             .Select(NormalizeHeader)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        for (int index = Math.Max(0, header.FirstCellNum); index < header.LastCellNum; index++)
+        for (int index = Math.Max(0, (int)header.FirstCellNum); index < header.LastCellNum; index++)
         {
             string value = NormalizeHeader(GetCellString(header, index));
             if (normalizedAliases.Contains(value))
