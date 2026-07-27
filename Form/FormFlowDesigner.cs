@@ -218,9 +218,16 @@ public class FormFlowDesigner : Form
         strip.Items.Add(button);
     }
 
-    private void ReloadFlows()
+    private void ReloadFlows(string? selectedId = null)
     {
-        flowList.DataSource = service.LoadAll().ToList();
+        List<DataFlowDefinition> flows = service.LoadAll().ToList();
+        flowList.DataSource = flows;
+        if (!string.IsNullOrWhiteSpace(selectedId))
+        {
+            int index = flows.FindIndex(flow => flow.Id == selectedId);
+            if (index >= 0)
+                flowList.SelectedIndex = index;
+        }
     }
 
     private void LoadFlow(DataFlowDefinition flow)
@@ -241,8 +248,9 @@ public class FormFlowDesigner : Form
         }
         try
         {
+            string currentId = current.Id;
             service.Save(current);
-            ReloadFlows();
+            ReloadFlows(currentId);
             lblState.Text = $"✓ Đã lưu lúc {DateTime.Now:HH:mm:ss}";
             lblState.ForeColor = AppTheme.AccentDark;
         }
@@ -332,4 +340,3 @@ public class FormFlowDesigner : Form
         _ => key
     };
 }
-

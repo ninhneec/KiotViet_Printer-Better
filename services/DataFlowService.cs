@@ -123,6 +123,8 @@ public class DataFlowService
     {
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
             throw new InvalidOperationException("Node nguồn chưa chọn file Excel hợp lệ.");
+        if (Path.GetExtension(path).Equals(".csv", StringComparison.OrdinalIgnoreCase))
+            return ReadCsv(path);
 
         using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using IWorkbook workbook = WorkbookFactory.Create(stream);
@@ -149,6 +151,66 @@ public class DataFlowService
             if (hasValue) table.Rows.Add(values);
         }
         return table;
+    }
+
+    private static FlowTable ReadCsv(string path)
+    {
+        string[] lines = File.ReadAllLines(path);
+        if (lines.Length == 0)
+            throw new InvalidOperationException("File CSV không có dữ liệu.");
+        char separator = DetectSeparator(lines[0]);
+        List<string> columns = ParseCsvLine(lines[0], separator)
+            .Select((value, index) => string.IsNullOrWhiteSpace(value) ? $"Cột {index + 1}" : value.Trim())
+            .ToList();
+        FlowTable table = new() { Columns = columns };
+        foreach (string line in lines.Skip(1))
+        {
+            List<string> cells = ParseCsvLine(line, separator);
+            Dictionary<string, string> row = new(StringComparer.OrdinalIgnoreCase);
+            bool hasValue = false;
+            for (int index = 0; index < columns.Count; index++)
+            {
+                string value = index < cells.Count ? cells[index].Trim() : "";
+                row[columns[index]] = value;
+                hasValue |= !string.IsNullOrWhiteSpace(value);
+            }
+            if (hasValue) table.Rows.Add(row);
+        }
+        return table;
+    }
+
+    private static char DetectSeparator(string header)
+    {
+        char[] candidates = [',', ';', '\t'];
+        return candidates.OrderByDescending(separator => ParseCsvLine(header, separator).Count).First();
+    }
+
+    private static List<string> ParseCsvLine(string line, char separator)
+    {
+        List<string> result = new();
+        StringBuilder cell = new();
+        bool quoted = false;
+        for (int index = 0; index < line.Length; index++)
+        {
+            char character = line[index];
+            if (character == '"')
+            {
+                if (quoted && index + 1 < line.Length && line[index + 1] == '"')
+                {
+                    cell.Append('"');
+                    index++;
+                }
+                else quoted = !quoted;
+            }
+            else if (character == separator && !quoted)
+            {
+                result.Add(cell.ToString());
+                cell.Clear();
+            }
+            else cell.Append(character);
+        }
+        result.Add(cell.ToString());
+        return result;
     }
 
     private static FlowTable Join(List<FlowTable> inputs, DataFlowNode node)
@@ -189,6 +251,8 @@ public class DataFlowService
     private static FlowTable Filter(FlowTable input, DataFlowNode node)
     {
         string column = node.Settings.GetValueOrDefault("Column", "");
+        if (!input.Columns.Contains(column, StringComparer.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Node Lọc không tìm thấy cột “{column}”.");
         string operation = node.Settings.GetValueOrDefault("Operation", "Có dữ liệu");
         string value = node.Settings.GetValueOrDefault("Value", "");
         FlowTable result = new() { Columns = [.. input.Columns] };
@@ -217,6 +281,12 @@ public class DataFlowService
             .ToList();
         if (mappings.Count == 0)
             return input;
+        string[] missing = mappings.Select(mapping => mapping.Source)
+            .Where(source => !input.Columns.Contains(source, StringComparer.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (missing.Length > 0)
+            throw new InvalidOperationException($"Node Chọn cột không tìm thấy: {string.Join(", ", missing)}.");
         FlowTable result = new() { Columns = mappings.Select(mapping => mapping.Target).ToList() };
         result.Rows = input.Rows.Select(row => mappings.ToDictionary(
             mapping => mapping.Target,

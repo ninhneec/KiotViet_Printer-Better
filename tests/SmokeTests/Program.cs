@@ -50,6 +50,23 @@ internal static class Program
             Assert(File.Exists(savedFlow), "Flow chưa được lưu lâu dài.");
             Assert(flowService.Load(savedFlow)?.Nodes.Count == flow.Nodes.Count, "Không mở lại được Flow đã lưu.");
 
+            string csvSource = Path.Combine(runtime, "flow-source.csv");
+            File.WriteAllText(csvSource, "Mã hàng,Tên hàng\nSP01,\"Sản phẩm, có dấu phẩy\"");
+            DataFlowDefinition csvFlow = DataFlowService.CreateStarterFlow();
+            DataFlowNode csvNode = csvFlow.Nodes.First(node => node.Type == DataFlowNodeType.ExcelSource);
+            csvNode.Settings["FilePath"] = csvSource;
+            DataFlowNode secondCsvSource = csvFlow.Nodes
+                .Where(node => node.Type == DataFlowNodeType.ExcelSource)
+                .Skip(1).First();
+            secondCsvSource.Settings["FilePath"] = csvSource;
+            DataFlowNode csvSelect = csvFlow.Nodes.Single(node => node.Type == DataFlowNodeType.SelectColumns);
+            csvSelect.Settings["Mappings"] = "Tên hàng=Tên hàng";
+            DataFlowNode csvValidate = csvFlow.Nodes.Single(node => node.Type == DataFlowNodeType.Validate);
+            csvValidate.Settings["Required"] = "Tên hàng";
+            FlowTable csvResult = flowService.Execute(csvFlow);
+            Assert(csvResult.Rows.Single()["Tên hàng"] == "Sản phẩm, có dấu phẩy",
+                "Flow đọc CSV có dấu phẩy trong chuỗi chưa đúng.");
+
             string dataFile = args.Length >= 3
                 ? Path.GetFullPath(args[2])
                 : Path.Combine(runtime, "fixed-data.xls");
