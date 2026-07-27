@@ -416,16 +416,25 @@ public class ExcelService
         if (!File.Exists(filePath))
             throw new Exception($"Không tìm thấy file Excel:\n{filePath}");
 
-        FileStream fs = new(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        MemoryStream memory = new();
+        using (FileStream source = new(
+            filePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite))
+        {
+            source.CopyTo(memory);
+        }
+        memory.Position = 0;
 
         try
         {
             // Tự nhận diện xls / xlsx theo nội dung thật của file
-            return WorkbookFactory.Create(fs);
+            return WorkbookFactory.Create(memory);
         }
         catch (Exception ex)
         {
-            fs.Dispose();
+            memory.Dispose();
             throw new Exception(
                 $"Không đọc được file Excel.\n" +
                 $"File: {Path.GetFileName(filePath)}\n" +
