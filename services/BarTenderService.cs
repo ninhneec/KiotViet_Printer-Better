@@ -252,7 +252,9 @@ public class BarTenderService
         sb.AppendLine("""<XMLScript Version="2.0">""");
         sb.AppendLine("""  <Command>""");
         sb.AppendLine("""    <Print>""");
-        sb.AppendLine($"      <Format>{EscapeXml(btwFile)}</Format>");
+        // BarTender giữ kết nối Excel chừng nào tài liệu .btw còn mở.
+        // Đóng tài liệu sau mỗi job để nhả file data cho sản phẩm kế tiếp.
+        sb.AppendLine($"      <Format CloseAtEndOfJob=\"true\">{EscapeXml(btwFile)}</Format>");
         sb.AppendLine("""      <PrintSetup>""");
         if (!string.IsNullOrWhiteSpace(printerName))
             sb.AppendLine($"        <Printer>{EscapeXml(printerName)}</Printer>");

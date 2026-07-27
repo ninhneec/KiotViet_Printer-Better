@@ -158,6 +158,8 @@ internal static class Program
             string templatePrinterContent = File.ReadAllText(templatePrinterXml);
             Assert(!templatePrinterContent.Contains("<Printer>"),
                 "XML không được ép máy in Windows khi dùng máy in lưu trong .btw.");
+            Assert(templatePrinterContent.Contains("CloseAtEndOfJob=\"true\""),
+                "XML phải đóng tài liệu .btw sau job để nhả khóa file data.");
             string overridePrinterXml = InvokeStatic<string>(
                 typeof(BarTenderService),
                 "CreatePrintXmlNearApp",

@@ -30,16 +30,13 @@ public class ExcelService
         if (!string.IsNullOrWhiteSpace(folder))
             Directory.CreateDirectory(folder);
 
-        using IWorkbook workbook = OpenOrCreateDataWorkbook(targetFile);
-        ISheet sheet = workbook.NumberOfSheets > 0
-            ? workbook.GetSheetAt(0)
-            : workbook.CreateSheet("Data");
-        for (int rowIndex = sheet.LastRowNum; rowIndex >= 0; rowIndex--)
-        {
-            IRow? oldRow = sheet.GetRow(rowIndex);
-            if (oldRow != null)
-                sheet.RemoveRow(oldRow);
-        }
+        // File trung gian DIRECT_PRICE luôn chỉ có đúng 3 cột. Tạo workbook
+        // mới trong bộ nhớ để không cần đọc file cũ đang bị BarTender giữ.
+        using IWorkbook workbook = Path.GetExtension(targetFile)
+            .Equals(".xlsx", StringComparison.OrdinalIgnoreCase)
+                ? new XSSFWorkbook()
+                : new HSSFWorkbook();
+        ISheet sheet = workbook.CreateSheet("Data");
         IRow header = sheet.CreateRow(0);
 
         for (int column = 0; column < DirectPriceHeaders.Length; column++)
@@ -79,21 +76,30 @@ public class ExcelService
         return WorkbookFactory.Create(memory);
     }
 
-    private static FileStream OpenDataFileWithRetry(string path, int maxAttempts = 10, int delayMs = 250)
+    private static FileStream OpenDataFileWithRetry(string path, int maxAttempts = 120, int delayMs = 250)
     {
+        IOException? lastError = null;
         for (int attempt = 1; attempt <= maxAttempts; attempt++)
         {
             try
             {
-                return new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+                // Không cho tiến trình khác đọc file trong lúc workbook mới
+                // đang được ghi dở.
+                return new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
             }
-            catch (IOException) when (attempt < maxAttempts)
+            catch (IOException ex) when (attempt < maxAttempts)
             {
+                lastError = ex;
                 Thread.Sleep(delayMs);
             }
         }
 
-        return new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+        throw new IOException(
+            "BarTender vẫn đang giữ file dữ liệu sau 30 giây.\n\n" +
+            $"File: {path}\n\n" +
+            "App đã tự chờ và thử lại nhưng BarTender chưa nhả kết nối. " +
+            "Hãy thoát hẳn BarTender một lần rồi bấm In lại.",
+            lastError);
     }
 
     private const int BarcodeColumnIndex = 5; // Cột F
@@ -371,7 +377,7 @@ public class ExcelService
             Directory.CreateDirectory(folder);
         }
 
-        using FileStream output = new(targetFile, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+        using FileStream output = OpenDataFileWithRetry(targetFile);
         workbook.Write(output);
     }
 
