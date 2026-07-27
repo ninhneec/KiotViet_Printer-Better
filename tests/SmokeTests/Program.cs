@@ -31,8 +31,13 @@ internal static class Program
             Assert(products.Count > 0, "Excel phải có ít nhất một sản phẩm.");
             Assert(!string.IsNullOrWhiteSpace(products[0].ProductName), "Thiếu Tên hàng.");
 
-            string dataFile = Path.Combine(runtime, "fixed-data.xls");
+            string dataFile = args.Length >= 3
+                ? Path.GetFullPath(args[2])
+                : Path.Combine(runtime, "fixed-data.xls");
             excelService.WriteDirectPriceDataFile(dataFile, products[0]);
+            string copiedName;
+            double copiedPrice;
+            string copiedUnit;
             using (FileStream input = new(dataFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             using (IWorkbook workbook = WorkbookFactory.Create(input))
             {
@@ -43,6 +48,16 @@ internal static class Program
                 Assert(header.GetCell(1).StringCellValue == "Giá bán", "Sai cột Giá bán.");
                 Assert(header.GetCell(2).StringCellValue == "Đơn vị tính", "Sai cột Đơn vị tính.");
                 Assert(sheet.LastRowNum == 1, "File data phải có đúng một dòng sản phẩm.");
+                IRow copiedRow = sheet.GetRow(1);
+                copiedName = copiedRow.GetCell(0).ToString() ?? "";
+                copiedPrice = copiedRow.GetCell(1).NumericCellValue;
+                copiedUnit = copiedRow.GetCell(2).ToString() ?? "";
+                string expectedName = string.IsNullOrWhiteSpace(products[0].ProductNameWithAttr)
+                    ? products[0].ProductName
+                    : products[0].ProductNameWithAttr;
+                Assert(copiedName == expectedName, "Tên hàng bị sai sau khi copy.");
+                Assert(Math.Abs(copiedPrice - products[0].Price) < 0.01, "Giá bán bị sai sau khi copy.");
+                Assert(copiedUnit == products[0].Unit, "Đơn vị tính bị sai sau khi copy.");
             }
 
             ProductRow secondProduct = Clone(products[0]);
@@ -163,6 +178,8 @@ internal static class Program
 
             Console.WriteLine("PASS: Excel import");
             Console.WriteLine("PASS: Fixed data file has exactly 3 columns");
+            Console.WriteLine($"COPIED FILE: {dataFile}");
+            Console.WriteLine($"COPIED VALUES: Tên hàng={copiedName} | Giá bán={copiedPrice:N0} | Đơn vị tính={copiedUnit}");
             Console.WriteLine("PASS: Single template auto-selection");
             Console.WriteLine("PASS: Preview/print readiness");
             Console.WriteLine("PASS: Preview button opens preview window");
