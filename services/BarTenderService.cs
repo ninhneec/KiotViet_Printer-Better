@@ -39,6 +39,11 @@ public class BarTenderService
                 throw new Exception($"Không tìm thấy máy in đã chọn:\n{printerName}");
 
             stage = "Tạo XML";
+            if (!string.IsNullOrWhiteSpace(printerName) && IsVirtualPrinter(printerName))
+                throw new Exception(
+                    $"“{printerName}” là máy in ảo nên sẽ yêu cầu lưu file.\n\n" +
+                    "Mở Quản lý mẫu tem và chọn máy in tem thật.");
+
             xmlPath = CreatePrintXmlNearApp(btwFile, namedSubStrings, printerName);
             WritePrintLog(
                 $"XML={xmlPath} printer={(string.IsNullOrWhiteSpace(printerName) ? "(trong file .btw)" : printerName)}");
@@ -295,6 +300,16 @@ public class BarTenderService
         File.WriteAllText(Path.Combine(debugFolder, "last_print_debug.xml"), xml, new UTF8Encoding(false));
 
         return xmlPath;
+    }
+
+    private static bool IsVirtualPrinter(string printerName)
+    {
+        string value = printerName.Trim().ToLowerInvariant();
+        return value.Contains("pdf") ||
+               value.Contains("xps") ||
+               value.Contains("onenote") ||
+               value.Contains("fax") ||
+               value.Contains("document writer");
     }
 
     private static string GetDefaultPrinterName()
