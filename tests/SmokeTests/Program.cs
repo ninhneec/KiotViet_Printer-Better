@@ -89,6 +89,23 @@ internal static class Program
                 Assert(preview.Enabled, "Nút Xem trước phải được bật.");
                 Assert(print.Enabled, "Nút In phải được bật.");
 
+                bool previewOpened = false;
+                using System.Windows.Forms.Timer closePreview = new() { Interval = 250 };
+                closePreview.Tick += (_, _) =>
+                {
+                    Form? previewForm = Application.OpenForms
+                        .Cast<Form>()
+                        .FirstOrDefault(form => form is FormPreview);
+                    if (previewForm == null)
+                        return;
+                    previewOpened = true;
+                    previewForm.Close();
+                };
+                closePreview.Start();
+                preview.PerformClick();
+                closePreview.Stop();
+                Assert(previewOpened, "Bấm Xem trước không mở cửa sổ preview.");
+
                 grid.CurrentCell = grid.Rows[0].Cells["ProductNameWithAttr"];
                 grid.Focus();
                 Assert(main.SendKey(Keys.Enter), "Enter chưa được app xử lý.");
@@ -106,6 +123,18 @@ internal static class Program
                 Assert(grid.CurrentCell?.RowIndex == 0, "Mũi tên lên không trở lại dòng.");
                 main.Close();
             }
+
+            configService.Config.BarTenderExe = sourceTemplate;
+            configService.Save();
+            using (var mainWithoutBarTender = new FormMain())
+            {
+                Button preview = ReadField<Button>(mainWithoutBarTender, "btnPreview");
+                Button print = ReadField<Button>(mainWithoutBarTender, "btnPrint");
+                Assert(preview.Enabled, "Xem trước không được phụ thuộc bartend.exe.");
+                Assert(!print.Enabled, "Nút In phải khóa khi chưa chọn đúng bartend.exe.");
+            }
+            configService.Config.BarTenderExe = fakeBarTender;
+            configService.Save();
 
             using (var config = new FormConfig())
             {
@@ -126,7 +155,9 @@ internal static class Program
                 LabelDefinition saved = ConfigService.Instance.Config.Labels.Single();
                 Assert(saved.Name == "Tên mới không nhảy", "Tên mẫu không được lưu.");
                 Assert(saved.DataFilePath == dataBefore, "Lưu sai file data đã chọn.");
-                Assert(File.Exists(saved.TemplatePath), "Bản sao .btw được lưu không tồn tại.");
+                Assert(saved.TemplatePath == templateBefore, "Lưu xong bị đổi đường dẫn .btw đã chọn.");
+                Assert(File.Exists(ConfigService.Instance.GetStoredTemplatePath("SMOKE")),
+                    "Bản dự phòng .btw không được tạo.");
                 Assert(((LabelDefinition?)list.SelectedItem)?.Code == "SMOKE", "Lưu xong không giữ mẫu đang chọn.");
             }
 
@@ -134,6 +165,8 @@ internal static class Program
             Console.WriteLine("PASS: Fixed data file has exactly 3 columns");
             Console.WriteLine("PASS: Single template auto-selection");
             Console.WriteLine("PASS: Preview/print readiness");
+            Console.WriteLine("PASS: Preview button opens preview window");
+            Console.WriteLine("PASS: Preview remains available without bartend.exe");
             Console.WriteLine("PASS: Enter/Shift+Enter cell navigation");
             Console.WriteLine("PASS: Four-direction arrow cell navigation");
             Console.WriteLine("PASS: Template name editing remains stable");

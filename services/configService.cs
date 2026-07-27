@@ -72,6 +72,12 @@ public class ConfigService
             foreach (LabelDefinition label in Config.Labels)
             {
                 label.HandlerType = "DIRECT_PRICE";
+                if (!File.Exists(label.TemplatePath))
+                {
+                    string backupTemplate = GetStoredTemplatePath(label.Code);
+                    if (File.Exists(backupTemplate))
+                        label.TemplatePath = backupTemplate;
+                }
                 if (string.IsNullOrWhiteSpace(label.DataFilePath))
                     label.DataFilePath = GetManagedDataFilePath(label.Code);
                 label.RequiresEmployeeCode = false;
@@ -129,14 +135,19 @@ public class ConfigService
             return sourcePath;
 
         Directory.CreateDirectory(TemplatesDirectory);
-        string safeCode = string.Concat((labelCode.Length == 0 ? "LABEL" : labelCode)
-            .Select(character => Path.GetInvalidFileNameChars().Contains(character) ? '_' : character));
-        string targetPath = Path.Combine(TemplatesDirectory, $"{safeCode}.btw");
+        string targetPath = GetStoredTemplatePath(labelCode);
 
         if (!Path.GetFullPath(sourcePath).Equals(Path.GetFullPath(targetPath), StringComparison.OrdinalIgnoreCase))
             File.Copy(sourcePath, targetPath, true);
 
         return targetPath;
+    }
+
+    public string GetStoredTemplatePath(string labelCode)
+    {
+        string safeCode = string.Concat((string.IsNullOrWhiteSpace(labelCode) ? "LABEL" : labelCode)
+            .Select(character => Path.GetInvalidFileNameChars().Contains(character) ? '_' : character));
+        return Path.Combine(TemplatesDirectory, $"{safeCode}.btw");
     }
 
     public string GetManagedDataFilePath(string labelCode)

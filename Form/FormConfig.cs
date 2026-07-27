@@ -428,7 +428,9 @@ public class FormConfig : Form
             .Select(Clone)
             .Select(item =>
             {
-                item.TemplatePath = ConfigService.Instance.StoreTemplate(item.TemplatePath, item.Code);
+                // Lưu một bản dự phòng trong LocalAppData nhưng vẫn giữ nguyên
+                // đường dẫn mà người dùng đã chọn trong màn hình setting.
+                ConfigService.Instance.StoreTemplate(item.TemplatePath, item.Code);
                 if (string.IsNullOrWhiteSpace(item.DataFilePath))
                     item.DataFilePath = ConfigService.Instance.GetManagedDataFilePath(item.Code);
                 new ExcelService().EnsureDirectPriceDataFile(item.DataFilePath);

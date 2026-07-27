@@ -840,21 +840,22 @@ public class FormMain : Form
     {
         List<string> templateIssues = selectedLabel?.GetReadinessIssues() ?? [];
         bool barTenderReady = ConfigService.Instance.IsBarTenderExecutableValid();
-        var ready = products.Count > 0 && selectedLabel != null &&
-                    templateIssues.Count == 0 && barTenderReady;
-        btnPreview.Enabled = ready;
-        btnPrint.Enabled = ready;
+        bool previewReady = products.Count > 0 && selectedLabel != null &&
+                            templateIssues.Count == 0;
+        bool printReady = previewReady && barTenderReady;
+        btnPreview.Enabled = previewReady;
+        btnPrint.Enabled = printReady;
         lblTemplateState.Text = selectedLabel == null
             ? "Chọn một mẫu để tiếp tục."
             : templateIssues.Count > 0
                 ? "Cần sửa mẫu: " + string.Join(" • ", templateIssues)
                 : !barTenderReady
-                    ? "Cần chọn đúng file bartend.exe trong Quản lý mẫu tem."
+                    ? "Có thể xem trước. Muốn in, hãy chọn đúng bartend.exe trong Quản lý mẫu tem."
                 : products.Count == 0
                     ? $"✓ {selectedLabel.Name} đã sẵn sàng. Hãy chọn file Excel."
                     : $"✓ Sẽ in bằng: {selectedLabel.Name}";
-        lblTemplateState.BackColor = ready ? Color.FromArgb(224, 243, 235) : AppTheme.SurfaceMuted;
-        lblTemplateState.ForeColor = ready ? AppTheme.AccentDark : AppTheme.Muted;
+        lblTemplateState.BackColor = printReady ? Color.FromArgb(224, 243, 235) : AppTheme.SurfaceMuted;
+        lblTemplateState.ForeColor = printReady ? AppTheme.AccentDark : AppTheme.Muted;
     }
 
     private void Preview_Click(object? sender, EventArgs e)
