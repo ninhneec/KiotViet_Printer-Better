@@ -22,10 +22,19 @@ public class ExcelService
         if (File.Exists(targetFile))
             return;
 
-        WriteDirectPriceDataFile(targetFile, null);
+        WriteDirectPriceDataFile(targetFile, Array.Empty<ProductRow>());
     }
 
     public void WriteDirectPriceDataFile(string targetFile, ProductRow? product)
+    {
+        WriteDirectPriceDataFile(
+            targetFile,
+            product == null ? Array.Empty<ProductRow>() : new[] { product });
+    }
+
+    public void WriteDirectPriceDataFile(
+        string targetFile,
+        IReadOnlyList<ProductRow> products)
     {
         string? folder = Path.GetDirectoryName(targetFile);
         if (!string.IsNullOrWhiteSpace(folder))
@@ -52,7 +61,7 @@ public class ExcelService
             }
         }
 
-        if (product != null)
+        if (products.Count > 0)
         {
             int nameColumn = FindHeaderColumn(header,
                 "Tên hàng", "Hàng hóa", "Tên sản phẩm", "Tên hàng thuộc tính");
@@ -66,13 +75,21 @@ public class ExcelService
             priceColumn = priceColumn >= 0 ? priceColumn : 1;
             unitColumn = unitColumn >= 0 ? unitColumn : 2;
 
-            IRow row = sheet.CreateRow(1);
-            string displayName = string.IsNullOrWhiteSpace(product.ProductNameWithAttr)
-                ? product.ProductName
-                : product.ProductNameWithAttr;
-            row.CreateCell(nameColumn).SetCellValue(displayName);
-            row.CreateCell(priceColumn).SetCellValue(product.Price);
-            row.CreateCell(unitColumn).SetCellValue(product.Unit);
+            int rowIndex = 1;
+            foreach (ProductRow product in products)
+            {
+                int copies = Math.Max(1, (int)Math.Round(product.Quantity));
+                for (int copy = 0; copy < copies; copy++)
+                {
+                    IRow row = sheet.CreateRow(rowIndex++);
+                    string displayName = string.IsNullOrWhiteSpace(product.ProductNameWithAttr)
+                        ? product.ProductName
+                        : product.ProductNameWithAttr;
+                    row.CreateCell(nameColumn).SetCellValue(displayName);
+                    row.CreateCell(priceColumn).SetCellValue(product.Price);
+                    row.CreateCell(unitColumn).SetCellValue(product.Unit);
+                }
+            }
         }
 
         using FileStream output = OpenDataFileWithRetry(targetFile);

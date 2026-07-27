@@ -25,6 +25,8 @@ public class FormMain : Form
     private readonly ToolTip fileToolTip = new();
     private readonly TextBox txtFilter = new();
     private readonly ComboBox cmbSpecialFilter = new();
+    private readonly NumericUpDown numPrintFrom = new();
+    private readonly NumericUpDown numPrintTo = new();
     private readonly Dictionary<string, int> baseColumnWidths = new();
     private readonly Stack<CellEdit> undoStack = new();
     private object? valueBeforeEdit;
@@ -280,6 +282,63 @@ public class FormMain : Form
         filterBar.Controls.Add(deleteFiltered);
         panel.Controls.Add(filterBar);
         filterBar.BringToFront();
+
+        var printChoiceBar = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            Height = 44,
+            FlowDirection = FlowDirection.LeftToRight,
+            Padding = new Padding(0, 4, 0, 4),
+            WrapContents = false
+        };
+        var printAll = new Button { Text = "In tất cả", Width = 88, Height = 32 };
+        var printFirst = new Button { Text = "Chỉ dòng đầu", Width = 105, Height = 32 };
+        var printRange = new Button { Text = "Chọn khoảng", Width = 108, Height = 32 };
+        AppTheme.StyleSecondary(printAll);
+        AppTheme.StyleSecondary(printFirst);
+        AppTheme.StyleSecondary(printRange);
+        numPrintFrom.Minimum = 1;
+        numPrintFrom.Maximum = 100000;
+        numPrintFrom.Value = 1;
+        numPrintFrom.Width = 72;
+        numPrintFrom.Height = 32;
+        numPrintTo.Minimum = 1;
+        numPrintTo.Maximum = 100000;
+        numPrintTo.Value = 1;
+        numPrintTo.Width = 72;
+        numPrintTo.Height = 32;
+        printAll.Click += (_, _) => SelectAllForPrint();
+        printFirst.Click += (_, _) => SelectFirstForPrint();
+        printRange.Click += (_, _) => SelectRangeForPrint();
+        printChoiceBar.Controls.Add(new Label
+        {
+            Text = "In nhanh:",
+            Width = 68,
+            Height = 32,
+            TextAlign = ContentAlignment.MiddleLeft,
+            ForeColor = AppTheme.Muted
+        });
+        printChoiceBar.Controls.Add(printAll);
+        printChoiceBar.Controls.Add(printFirst);
+        printChoiceBar.Controls.Add(new Label
+        {
+            Text = "Từ dòng",
+            Width = 58,
+            Height = 32,
+            TextAlign = ContentAlignment.MiddleCenter
+        });
+        printChoiceBar.Controls.Add(numPrintFrom);
+        printChoiceBar.Controls.Add(new Label
+        {
+            Text = "đến",
+            Width = 34,
+            Height = 32,
+            TextAlign = ContentAlignment.MiddleCenter
+        });
+        printChoiceBar.Controls.Add(numPrintTo);
+        printChoiceBar.Controls.Add(printRange);
+        panel.Controls.Add(printChoiceBar);
+        printChoiceBar.BringToFront();
 
         grid.Dock = DockStyle.Fill;
         grid.ReadOnly = false;
@@ -895,6 +954,43 @@ public class FormMain : Form
         List<ProductRow> filtered = GetFilteredProducts();
         foreach (ProductRow product in filtered)
             product.IncludeForPrint = include;
+        ApplyFilter();
+    }
+
+    private void SelectAllForPrint()
+    {
+        foreach (ProductRow product in products)
+            product.IncludeForPrint = true;
+        numPrintFrom.Value = 1;
+        numPrintTo.Value = Math.Max(1, products.Count);
+        ApplyFilter();
+    }
+
+    private void SelectFirstForPrint()
+    {
+        for (int index = 0; index < products.Count; index++)
+            products[index].IncludeForPrint = index == 0;
+        numPrintFrom.Value = 1;
+        numPrintTo.Value = 1;
+        ApplyFilter();
+    }
+
+    private void SelectRangeForPrint()
+    {
+        if (products.Count == 0)
+            return;
+
+        int from = (int)numPrintFrom.Value;
+        int to = (int)numPrintTo.Value;
+        if (from > to)
+            (from, to) = (to, from);
+        from = Math.Clamp(from, 1, products.Count);
+        to = Math.Clamp(to, 1, products.Count);
+
+        for (int index = 0; index < products.Count; index++)
+            products[index].IncludeForPrint = index + 1 >= from && index + 1 <= to;
+        numPrintFrom.Value = from;
+        numPrintTo.Value = to;
         ApplyFilter();
     }
 

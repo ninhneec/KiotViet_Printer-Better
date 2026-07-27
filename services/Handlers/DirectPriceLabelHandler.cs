@@ -38,12 +38,9 @@ public class DirectPriceLabelHandler : ILabelHandler
         if (string.IsNullOrWhiteSpace(label.DataFilePath))
             throw new Exception("Mẫu chưa có file data trung gian.");
 
-        foreach (ProductRow item in products)
-        {
-            excelService.WriteDirectPriceDataFile(label.DataFilePath, item);
-            int copies = Math.Max(1, (int)Math.Round(item.Quantity));
-            for (int copy = 0; copy < copies; copy++)
-                barTenderService.Print(label.TemplatePath);
-        }
+        // Ghi toàn bộ sản phẩm đã chọn vào file trung gian một lần.
+        // BarTender sẽ đọc tất cả record trong database và in trọn lô.
+        excelService.WriteDirectPriceDataFile(label.DataFilePath, products);
+        barTenderService.Print(label.TemplatePath);
     }
 }
