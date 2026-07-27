@@ -125,39 +125,67 @@ public class ConfigService
 
     public string ResolveBarTenderExecutable(string configuredPath)
     {
-        string path = (configuredPath ?? "").Trim().Trim('"');
+        string path = NormalizeConfiguredPath(configuredPath);
         if (string.IsNullOrWhiteSpace(path))
             return "";
         if (File.Exists(path))
         {
             if (Path.GetExtension(path).Equals(".lnk", StringComparison.OrdinalIgnoreCase))
-                return ResolveWindowsShortcut(path);
+            {
+                string shortcutTarget = ResolveWindowsShortcut(path);
+                if (IsBarTenderExecutable(shortcutTarget))
+                    return shortcutTarget;
+                return FindBarTenderExecutables().FirstOrDefault() ?? shortcutTarget;
+            }
             return path;
         }
-        if (!Directory.Exists(path))
-            return path;
-
-        string direct = Path.Combine(path, "bartend.exe");
-        if (File.Exists(direct))
-            return direct;
-        try
+        if (Directory.Exists(path))
         {
-            foreach (string shortcut in Directory.EnumerateFiles(path, "*.lnk", SearchOption.TopDirectoryOnly))
+            string? insideFolder = FindExecutableUnderDirectory(path).FirstOrDefault();
+            if (insideFolder != null)
+                return insideFolder;
+            foreach (string shortcut in SafeEnumerateFiles(path, "*.lnk", SearchOption.AllDirectories))
             {
                 string target = ResolveWindowsShortcut(shortcut);
-                if (File.Exists(target) &&
-                    Path.GetFileName(target).Equals("bartend.exe", StringComparison.OrdinalIgnoreCase))
+                if (IsBarTenderExecutable(target))
                     return target;
             }
         }
-        catch (IOException)
-        {
-        }
-        catch (UnauthorizedAccessException)
-        {
-        }
+
+        if (Path.GetFileName(path).Equals("bartend.exe", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("bartender", StringComparison.OrdinalIgnoreCase) ||
+            path.Contains("seagull", StringComparison.OrdinalIgnoreCase))
+            return FindBarTenderExecutables().FirstOrDefault() ?? path;
         return path;
     }
+
+    public string GetBarTenderDiagnostic()
+    {
+        string selected = Config.BarTenderExe;
+        string resolved = ResolveBarTenderExecutable(selected);
+        IReadOnlyList<string> candidates = FindBarTenderExecutables();
+        return $"Đã chọn: {selected}\n" +
+               $"Thực thi: {resolved}\n" +
+               $"Tồn tại: {(File.Exists(resolved) ? "Có" : "Không")}\n" +
+               $"Ứng viên tự tìm: {(candidates.Count == 0 ? "(không có)" : string.Join(" | ", candidates))}";
+    }
+
+    private static string NormalizeConfiguredPath(string value)
+    {
+        string path = Environment.ExpandEnvironmentVariables(value ?? "")
+            .Replace("\r", "")
+            .Replace("\n", "")
+            .Trim()
+            .Trim('"');
+        if (path.StartsWith("file:///", StringComparison.OrdinalIgnoreCase) &&
+            Uri.TryCreate(path, UriKind.Absolute, out Uri? uri) && uri.IsFile)
+            path = uri.LocalPath;
+        return path;
+    }
+
+    private static bool IsBarTenderExecutable(string path) =>
+        File.Exists(path) &&
+        Path.GetFileName(path).Equals("bartend.exe", StringComparison.OrdinalIgnoreCase);
 
     private static string ResolveWindowsShortcut(string shortcutPath)
     {
@@ -251,36 +279,185 @@ public class ConfigService
 
     public IReadOnlyList<string> FindBarTenderExecutables()
     {
+        List<string> results = new();
+        AddRunningBarTender(results);
+        AddRegistryBarTender(results);
+        AddPathBarTender(results);
+
         string[] roots =
-        [
+        {
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
             Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)
-        ];
-        List<string> results = new();
+        };
         foreach (string root in roots.Where(Directory.Exists).Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            string[] likelyDirectories =
-            [
-                Path.Combine(root, "Seagull"),
-                Path.Combine(root, "Seagull Scientific"),
-                Path.Combine(root, "BarTender")
-            ];
-            foreach (string directory in likelyDirectories.Where(Directory.Exists))
+            foreach (string vendor in new[] { "Seagull", "Seagull Scientific", "BarTender" })
+                results.AddRange(FindExecutableUnderDirectory(Path.Combine(root, vendor)));
+        }
+
+        string[] startMenus =
+        {
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu),
+            Environment.GetFolderPath(Environment.SpecialFolder.StartMenu)
+        };
+        foreach (string startMenu in startMenus.Where(Directory.Exists))
+        {
+            foreach (string shortcut in SafeEnumerateFiles(startMenu, "*.lnk", SearchOption.AllDirectories)
+                         .Where(file => file.Contains("bartender", StringComparison.OrdinalIgnoreCase)))
+            {
+                string target = ResolveWindowsShortcut(shortcut);
+                if (IsBarTenderExecutable(target))
+                    results.Add(target);
+            }
+        }
+        return results
+            .Select(NormalizeConfiguredPath)
+            .Where(IsBarTenderExecutable)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(path => GetFileVersion(path))
+            .ThenBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static IEnumerable<string> FindExecutableUnderDirectory(string directory)
+    {
+        if (!Directory.Exists(directory)) return [];
+        return SafeEnumerateFiles(directory, "bartend.exe", SearchOption.AllDirectories);
+    }
+
+    private static IEnumerable<string> SafeEnumerateFiles(
+        string directory,
+        string pattern,
+        SearchOption searchOption)
+    {
+        try
+        {
+            return Directory.EnumerateFiles(directory, pattern, searchOption).ToList();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return [];
+        }
+        catch (IOException)
+        {
+            return [];
+        }
+    }
+
+    private static void AddRunningBarTender(List<string> results)
+    {
+        try
+        {
+            foreach (System.Diagnostics.Process process in System.Diagnostics.Process.GetProcessesByName("bartend"))
             {
                 try
                 {
-                    results.AddRange(Directory.EnumerateFiles(
-                        directory, "bartend.exe", SearchOption.AllDirectories));
+                    string? path = process.MainModule?.FileName;
+                    if (!string.IsNullOrWhiteSpace(path)) results.Add(path);
                 }
-                catch (UnauthorizedAccessException)
+                catch
                 {
                 }
-                catch (IOException)
+                finally
                 {
+                    process.Dispose();
                 }
             }
         }
-        return results.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        catch
+        {
+        }
+    }
+
+    private static void AddPathBarTender(List<string> results)
+    {
+        string? pathValue = Environment.GetEnvironmentVariable("PATH");
+        if (string.IsNullOrWhiteSpace(pathValue)) return;
+        foreach (string folder in pathValue.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        {
+            try
+            {
+                string candidate = Path.Combine(folder.Trim().Trim('"'), "bartend.exe");
+                if (File.Exists(candidate)) results.Add(candidate);
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private static void AddRegistryBarTender(List<string> results)
+    {
+        foreach (Microsoft.Win32.RegistryHive hive in new[]
+                 {
+                     Microsoft.Win32.RegistryHive.LocalMachine,
+                     Microsoft.Win32.RegistryHive.CurrentUser
+                 })
+        foreach (Microsoft.Win32.RegistryView view in new[]
+                 {
+                     Microsoft.Win32.RegistryView.Registry64,
+                     Microsoft.Win32.RegistryView.Registry32
+                 })
+        {
+            try
+            {
+                using Microsoft.Win32.RegistryKey baseKey =
+                    Microsoft.Win32.RegistryKey.OpenBaseKey(hive, view);
+                using (Microsoft.Win32.RegistryKey? appPath =
+                       baseKey.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\bartend.exe"))
+                {
+                    AddRegistryCandidate(results, appPath?.GetValue(null)?.ToString());
+                }
+                using Microsoft.Win32.RegistryKey? uninstall =
+                    baseKey.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall");
+                if (uninstall == null) continue;
+                foreach (string keyName in uninstall.GetSubKeyNames())
+                {
+                    using Microsoft.Win32.RegistryKey? entry = uninstall.OpenSubKey(keyName);
+                    string displayName = entry?.GetValue("DisplayName")?.ToString() ?? "";
+                    string publisher = entry?.GetValue("Publisher")?.ToString() ?? "";
+                    if (!displayName.Contains("bartender", StringComparison.OrdinalIgnoreCase) &&
+                        !publisher.Contains("seagull", StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    AddRegistryCandidate(results, entry?.GetValue("DisplayIcon")?.ToString());
+                    string installLocation = entry?.GetValue("InstallLocation")?.ToString() ?? "";
+                    if (!string.IsNullOrWhiteSpace(installLocation))
+                        results.AddRange(FindExecutableUnderDirectory(installLocation));
+                }
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private static void AddRegistryCandidate(List<string> results, string? rawValue)
+    {
+        if (string.IsNullOrWhiteSpace(rawValue)) return;
+        string value = rawValue.Trim().Trim('"');
+        int iconIndex = value.LastIndexOf(',');
+        if (iconIndex > 2 && int.TryParse(value[(iconIndex + 1)..], out _))
+            value = value[..iconIndex].Trim().Trim('"');
+        if (Directory.Exists(value))
+            results.AddRange(FindExecutableUnderDirectory(value));
+        else if (File.Exists(value))
+            results.Add(value);
+    }
+
+    private static Version GetFileVersion(string path)
+    {
+        try
+        {
+            return Version.TryParse(
+                System.Diagnostics.FileVersionInfo.GetVersionInfo(path).FileVersion,
+                out Version? version)
+                ? version
+                : new Version();
+        }
+        catch
+        {
+            return new Version();
+        }
     }
 
     public string StoreTemplate(string sourcePath, string labelCode)

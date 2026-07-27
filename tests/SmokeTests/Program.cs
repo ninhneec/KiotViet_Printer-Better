@@ -298,6 +298,22 @@ internal static class Program
                 CreateShortcut(shortcutPath, resolvedBartender);
                 Assert(ConfigService.Instance.ResolveBarTenderExecutable(shortcutPath) == resolvedBartender,
                     "Không giải được shortcut Start Menu tới bartend.exe.");
+                Assert(ConfigService.Instance.ResolveBarTenderExecutable($"\"{resolvedBartender}\r\n\"") == resolvedBartender,
+                    "Không làm sạch được đường dẫn có dấu nháy/xuống dòng.");
+                string nestedRoot = Path.Combine(runtime, "thu-muc-cha");
+                string nestedFolder = Path.Combine(nestedRoot, "Seagull", "BarTender Suite");
+                Directory.CreateDirectory(nestedFolder);
+                string nestedBartender = Path.Combine(nestedFolder, "bartend.exe");
+                File.Copy(sourceTemplate, nestedBartender);
+                Assert(ConfigService.Instance.ResolveBarTenderExecutable(nestedRoot) == nestedBartender,
+                    "Không tìm được bartend.exe trong thư mục con.");
+                Environment.SetEnvironmentVariable("KV_BT_TEST_PATH", resolvedBartender);
+                Assert(ConfigService.Instance.ResolveBarTenderExecutable("%KV_BT_TEST_PATH%") == resolvedBartender,
+                    "Không mở rộng được biến môi trường trong đường dẫn.");
+                Assert(ConfigService.Instance.ResolveBarTenderExecutable(new Uri(resolvedBartender).AbsoluteUri) == resolvedBartender,
+                    "Không xử lý được đường dẫn file://.");
+                Assert(ConfigService.Instance.GetBarTenderDiagnostic().Contains("Thực thi:"),
+                    "Chẩn đoán BarTender thiếu đường dẫn thực thi.");
             }
 
             string missingTemplate = Path.Combine(runtime, "duong-dan-nguoi-dung", "mau-khong-ton-tai.btw");
@@ -337,6 +353,7 @@ internal static class Program
             Console.WriteLine("PASS: Missing user paths never reset to managed defaults");
             Console.WriteLine("PASS: Freely selected app path is persisted immediately");
             Console.WriteLine("PASS: BarTender folder and Start Menu shortcut resolution");
+            Console.WriteLine("PASS: Quoted, multiline, nested, environment and file URI paths");
             Console.WriteLine("PASS: Flow designer is visible from Settings");
             Console.WriteLine($"Runtime: {runtime}");
             return 0;

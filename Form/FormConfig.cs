@@ -189,7 +189,7 @@ public class FormConfig : Form
         AddFlowSettings(layout, 9);
 
         lblStatus.Dock = DockStyle.Bottom;
-        lblStatus.Height = 88;
+        lblStatus.Height = 104;
         lblStatus.Padding = new Padding(14);
         lblStatus.Font = AppTheme.Body(9.5F, FontStyle.Bold);
         scroll.Controls.Add(lblStatus);
