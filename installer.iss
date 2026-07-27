@@ -1,7 +1,7 @@
 [Setup]
 AppId={{8E1A7C3D-2D91-4E37-8B54-123456789ABC}
 AppName=KiotViet Printer Better
-AppVersion=0.1.0-beta.25
+AppVersion=0.1.0-beta.26
 AppPublisher=ninhneec
 
 DefaultDirName={localappdata}\Programs\KiotViet Printer Better

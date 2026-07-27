@@ -70,7 +70,9 @@ public class BarTenderService
             Task<string> stdOutTask = process.StandardOutput.ReadToEndAsync();
             Task<string> stdErrTask = process.StandardError.ReadToEndAsync();
             stage = "Chờ BarTender xử lý";
-            bool exited = process.WaitForExit(hasRunningBarTender ? 90000 : 30000);
+            // In cả lô có thể cần lâu hơn trên máy yếu. Luồng này chạy trong
+            // Task nền nên giao diện vẫn phản hồi trong lúc chờ BarTender.
+            bool exited = process.WaitForExit(180000);
             if (!exited)
                 throw new Exception(
                     "BarTender chưa phản hồi trong thời gian cho phép. " +
@@ -258,7 +260,9 @@ public class BarTenderService
         sb.AppendLine("""  <Command>""");
         // Chờ BarTender đọc và gửi xong đúng dòng hiện tại trước khi app
         // được phép ghi dữ liệu của sản phẩm tiếp theo.
-        sb.AppendLine("""    <Print WaitForJobToComplete="true" Timeout="120000" ReturnPrintData="true" ReturnSummary="true" ReturnLabelData="false">""");
+        // Không yêu cầu BarTender trả dữ liệu/summary của hàng trăm tem:
+        // response nhỏ hơn đáng kể trên máy cấu hình thấp.
+        sb.AppendLine("""    <Print WaitForJobToComplete="true" Timeout="180000" ReturnPrintData="false" ReturnSummary="false" ReturnLabelData="false">""");
         // BarTender giữ kết nối Excel chừng nào tài liệu .btw còn mở.
         // Đóng tài liệu sau mỗi job để nhả file data cho sản phẩm kế tiếp.
         sb.AppendLine($"      <Format CloseAtEndOfJob=\"true\">{EscapeXml(btwFile)}</Format>");
