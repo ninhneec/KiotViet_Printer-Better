@@ -251,6 +251,7 @@ public class BarTenderService
             End If
             Err.Clear
             btApp.Visible = False
+            Set btMessages = Nothing
             response = btApp.XMLScript(xmlPath, 1, btMessages)
             If Err.Number <> 0 Then
               WScript.StdErr.WriteLine "XMLSCRIPT: " & Err.Description
