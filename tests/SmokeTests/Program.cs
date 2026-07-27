@@ -63,6 +63,7 @@ internal static class Program
             ProductRow secondProduct = Clone(products[0]);
             secondProduct.ProductCode += "-2";
             secondProduct.ProductNameWithAttr += " dòng 2";
+            secondProduct.Unit = string.IsNullOrWhiteSpace(products[0].Unit) ? "Cái" : "";
             string uiExcel = Path.Combine(runtime, "ui-data.xlsx");
             excelService.ExportProducts(uiExcel, [products[0], secondProduct]);
 
@@ -99,10 +100,32 @@ internal static class Program
                 Button preview = ReadField<Button>(main, "btnPreview");
                 Button print = ReadField<Button>(main, "btnPrint");
                 DataGridView grid = ReadField<DataGridView>(main, "grid");
-                Assert(loadedProducts.Count == 2, "Màn chính không nạp đúng Excel.");
+                TextBox filter = ReadField<TextBox>(main, "txtFilter");
+                ComboBox specialFilter = ReadField<ComboBox>(main, "cmbSpecialFilter");
+                Assert(loadedProducts.Count == 2, $"Màn chính không nạp đúng Excel: {loadedProducts.Count} dòng.");
                 Assert(selectedLabel?.Code == "SMOKE", "Mẫu duy nhất không tự được chọn.");
                 Assert(preview.Enabled, "Nút Xem trước phải được bật.");
                 Assert(print.Enabled, "Nút In phải được bật.");
+
+                specialFilter.SelectedIndex = 1;
+                Application.DoEvents();
+                Assert(grid.Rows.Count == 1, "Lọc thiếu đơn vị tính không đúng.");
+                Assert(grid.Rows[0].Cells["Unit"].InheritedStyle.BackColor.R > 240,
+                    "Ô thiếu đơn vị tính chưa được tô cảnh báo.");
+                specialFilter.SelectedIndex = 2;
+                Application.DoEvents();
+                Assert(grid.Rows.Count == 1, "Lọc có đơn vị tính không đúng.");
+                specialFilter.SelectedIndex = 0;
+                filter.Text = "-2";
+                Application.DoEvents();
+                Assert(grid.Rows.Count == 1, "Tìm theo mã hàng không đúng.");
+                filter.Clear();
+                Application.DoEvents();
+
+                Invoke(main, "SetFilteredPrintState", false);
+                Assert(!preview.Enabled && !print.Enabled, "Bỏ chọn in chưa khóa Preview/In.");
+                Invoke(main, "SetFilteredPrintState", true);
+                Assert(preview.Enabled && print.Enabled, "Chọn in lại chưa bật Preview/In.");
 
                 bool previewOpened = false;
                 using System.Windows.Forms.Timer closePreview = new() { Interval = 250 };
@@ -184,6 +207,9 @@ internal static class Program
             Console.WriteLine("PASS: Preview/print readiness");
             Console.WriteLine("PASS: Preview button opens preview window");
             Console.WriteLine("PASS: Preview remains available without bartend.exe");
+            Console.WriteLine("PASS: Search and special data filters");
+            Console.WriteLine("PASS: Missing-unit warning color");
+            Console.WriteLine("PASS: Include/exclude rows from print");
             Console.WriteLine("PASS: Enter/Shift+Enter cell navigation");
             Console.WriteLine("PASS: Four-direction arrow cell navigation");
             Console.WriteLine("PASS: Template name editing remains stable");
@@ -214,8 +240,15 @@ internal static class Program
 
     private static void Invoke(object instance, string name, params object[] args)
     {
-        MethodInfo method = instance.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new MissingMethodException(instance.GetType().Name, name);
+        Type? type = instance.GetType();
+        MethodInfo? method = null;
+        while (type != null && method == null)
+        {
+            method = type.GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic);
+            type = type.BaseType;
+        }
+        if (method == null)
+            throw new MissingMethodException(instance.GetType().Name, name);
         method.Invoke(instance, args);
     }
 
@@ -227,6 +260,7 @@ internal static class Program
 
     private static ProductRow Clone(ProductRow item) => new()
     {
+        IncludeForPrint = item.IncludeForPrint,
         StoreName = item.StoreName,
         Category = item.Category,
         ProductCode = item.ProductCode,

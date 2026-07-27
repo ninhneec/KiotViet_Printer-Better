@@ -2,6 +2,7 @@ namespace KiotVietLabelPrinter.Models;
 
 public class ProductRow
 {
+    public bool IncludeForPrint { get; set; } = true;
     public string StoreName { get; set; } = "";
     public string Category { get; set; } = "";
 

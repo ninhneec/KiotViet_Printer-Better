@@ -23,6 +23,8 @@ public class FormMain : Form
     private readonly Label lblZoom = new();
     private readonly TrackBar zoomSlider = new();
     private readonly ToolTip fileToolTip = new();
+    private readonly TextBox txtFilter = new();
+    private readonly ComboBox cmbSpecialFilter = new();
     private readonly Dictionary<string, int> baseColumnWidths = new();
     private readonly Stack<CellEdit> undoStack = new();
     private object? valueBeforeEdit;
@@ -225,6 +227,49 @@ public class FormMain : Form
         panel.Controls.Add(commandBar);
         commandBar.BringToFront();
 
+        var filterBar = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            Height = 44,
+            FlowDirection = FlowDirection.LeftToRight,
+            Padding = new Padding(0, 4, 0, 4),
+            WrapContents = false
+        };
+        txtFilter.Width = 210;
+        txtFilter.Height = 32;
+        txtFilter.PlaceholderText = "Tìm mã hoặc tên hàng";
+        txtFilter.TextChanged += (_, _) => ApplyFilter();
+        cmbSpecialFilter.Width = 155;
+        cmbSpecialFilter.Height = 32;
+        cmbSpecialFilter.DropDownStyle = ComboBoxStyle.DropDownList;
+        cmbSpecialFilter.Items.AddRange(
+        [
+            "Tất cả dữ liệu",
+            "Thiếu đơn vị tính",
+            "Có đơn vị tính",
+            "Giá bán bằng 0",
+            "Được chọn in",
+            "Đang bỏ qua"
+        ]);
+        cmbSpecialFilter.SelectedIndex = 0;
+        cmbSpecialFilter.SelectedIndexChanged += (_, _) => ApplyFilter();
+        var selectAll = new Button { Text = "Chọn in", Width = 82, Height = 32 };
+        var selectNone = new Button { Text = "Bỏ in", Width = 76, Height = 32 };
+        var deleteFiltered = new Button { Text = "Xóa đang lọc", Width = 110, Height = 32 };
+        AppTheme.StyleSecondary(selectAll);
+        AppTheme.StyleSecondary(selectNone);
+        AppTheme.StyleSecondary(deleteFiltered);
+        selectAll.Click += (_, _) => SetFilteredPrintState(true);
+        selectNone.Click += (_, _) => SetFilteredPrintState(false);
+        deleteFiltered.Click += (_, _) => DeleteFilteredRows();
+        filterBar.Controls.Add(txtFilter);
+        filterBar.Controls.Add(cmbSpecialFilter);
+        filterBar.Controls.Add(selectAll);
+        filterBar.Controls.Add(selectNone);
+        filterBar.Controls.Add(deleteFiltered);
+        panel.Controls.Add(filterBar);
+        filterBar.BringToFront();
+
         grid.Dock = DockStyle.Fill;
         grid.ReadOnly = false;
         grid.AllowUserToAddRows = false;
@@ -246,6 +291,24 @@ public class FormMain : Form
         grid.CellValidating += Grid_CellValidating;
         grid.CellBeginEdit += (_, e) => valueBeforeEdit = grid[e.ColumnIndex, e.RowIndex].Value;
         grid.CellEndEdit += Grid_CellEndEdit;
+        grid.CurrentCellDirtyStateChanged += (_, _) =>
+        {
+            if (grid.IsCurrentCellDirty &&
+                grid.CurrentCell is DataGridViewCheckBoxCell)
+            {
+                grid.CommitEdit(DataGridViewDataErrorContexts.Commit);
+            }
+        };
+        grid.CellValueChanged += (_, e) =>
+        {
+            if (e.RowIndex >= 0 && e.ColumnIndex >= 0 &&
+                grid.Columns[e.ColumnIndex].Name == "IncludeForPrint")
+            {
+                UpdateSummary();
+                UpdateActions();
+            }
+        };
+        grid.CellFormatting += Grid_CellFormatting;
         grid.MouseWheel += Grid_MouseWheel;
         grid.KeyDown += Grid_KeyDown;
         grid.ClipboardCopyMode = DataGridViewClipboardCopyMode.EnableWithoutHeaderText;
@@ -340,9 +403,9 @@ public class FormMain : Form
             selectedExcelPath = path;
             txtExcel.Text = Path.GetFileName(path);
             fileToolTip.SetToolTip(txtExcel, path);
-            grid.DataSource = products;
-            FormatGrid();
-            lblEmptyData.Visible = false;
+            txtFilter.Clear();
+            cmbSpecialFilter.SelectedIndex = 0;
+            ApplyFilter();
             lblFileState.Text = $"✓ Đã đọc {products.Count:N0} sản phẩm";
             lblFileState.ForeColor = AppTheme.AccentDark;
             UpdateSummary();
@@ -369,6 +432,7 @@ public class FormMain : Form
         foreach (DataGridViewColumn column in grid.Columns)
             column.Visible = false;
 
+        RenameColumn("IncludeForPrint", "In", 54);
         RenameColumn("ProductCode", "Mã hàng", 130);
         RenameColumn("ProductNameWithAttr", "Tên in trên tem", 360);
         RenameColumn("Unit", "Đơn vị tính", 110);
@@ -382,6 +446,7 @@ public class FormMain : Form
         SetEditable("Unit");
         SetEditable("Quantity");
         SetEditable("Price");
+        SetEditable("IncludeForPrint");
 
         if (grid.Columns["Price"] is { } price) price.DefaultCellStyle.Format = "N0";
         baseColumnWidths.Clear();
@@ -598,6 +663,31 @@ public class FormMain : Form
             undoStack.Push(new CellEdit(e.RowIndex, e.ColumnIndex, valueBeforeEdit));
         valueBeforeEdit = null;
         UpdateSummary();
+        if (grid.Columns[e.ColumnIndex].Name == "IncludeForPrint" &&
+            cmbSpecialFilter.SelectedIndex is 4 or 5)
+        {
+            BeginInvoke((Action)ApplyFilter);
+        }
+    }
+
+    private void Grid_CellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
+    {
+        if (e.RowIndex < 0 || grid.Rows[e.RowIndex].DataBoundItem is not ProductRow product)
+            return;
+
+        if (!product.IncludeForPrint)
+        {
+            e.CellStyle.ForeColor = AppTheme.Muted;
+            e.CellStyle.BackColor = Color.FromArgb(241, 243, 242);
+        }
+
+        if (string.IsNullOrWhiteSpace(product.Unit) &&
+            grid.Columns[e.ColumnIndex].Name == "Unit")
+        {
+            e.CellStyle.BackColor = Color.FromArgb(255, 226, 221);
+            e.CellStyle.ForeColor = AppTheme.Danger;
+            e.CellStyle.Font = AppTheme.Body(9.5F, FontStyle.Bold);
+        }
     }
 
     private void RememberCell(DataGridViewCell cell)
@@ -740,10 +830,80 @@ public class FormMain : Form
         foreach (ProductRow item in selected)
             products.Remove(item);
 
-        grid.DataSource = null;
-        grid.DataSource = products;
-        FormatGrid();
+        ApplyFilter();
         UpdateSummary();
+    }
+
+    private List<ProductRow> GetFilteredProducts()
+    {
+        string keyword = txtFilter.Text.Trim();
+        IEnumerable<ProductRow> query = products;
+
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            query = query.Where(product =>
+                product.ProductCode.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                product.ProductName.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
+                product.ProductNameWithAttr.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+        }
+
+        query = cmbSpecialFilter.SelectedIndex switch
+        {
+            1 => query.Where(product => string.IsNullOrWhiteSpace(product.Unit)),
+            2 => query.Where(product => !string.IsNullOrWhiteSpace(product.Unit)),
+            3 => query.Where(product => product.Price <= 0),
+            4 => query.Where(product => product.IncludeForPrint),
+            5 => query.Where(product => !product.IncludeForPrint),
+            _ => query
+        };
+
+        return query.ToList();
+    }
+
+    private void ApplyFilter()
+    {
+        if (grid.IsCurrentCellInEditMode)
+            grid.EndEdit();
+
+        List<ProductRow> filtered = GetFilteredProducts();
+        grid.DataSource = null;
+        grid.DataSource = filtered;
+        if (grid.Columns.Count > 0)
+            FormatGrid();
+
+        lblEmptyData.Text = products.Count == 0
+            ? "Chưa có dữ liệu\n\nKéo file Excel KiotViet vào cửa sổ để bắt đầu."
+            : "Không có dòng phù hợp với bộ lọc.";
+        lblEmptyData.Visible = filtered.Count == 0;
+        UpdateSummary();
+        UpdateActions();
+    }
+
+    private void SetFilteredPrintState(bool include)
+    {
+        List<ProductRow> filtered = GetFilteredProducts();
+        foreach (ProductRow product in filtered)
+            product.IncludeForPrint = include;
+        ApplyFilter();
+    }
+
+    private void DeleteFilteredRows()
+    {
+        List<ProductRow> filtered = GetFilteredProducts();
+        if (filtered.Count == 0)
+            return;
+
+        DialogResult answer = MessageBox.Show(
+            $"Xóa {filtered.Count:N0} dòng đang hiển thị khỏi danh sách?\n\nFile Excel gốc không bị thay đổi.",
+            "Xóa dữ liệu đang lọc",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question);
+        if (answer != DialogResult.Yes)
+            return;
+
+        foreach (ProductRow product in filtered)
+            products.Remove(product);
+        ApplyFilter();
     }
 
     private void SaveEditedExcel()
@@ -772,8 +932,14 @@ public class FormMain : Form
 
     private void UpdateSummary()
     {
+        int includedCount = products.Count(product => product.IncludeForPrint);
+        double includedQuantity = products
+            .Where(product => product.IncludeForPrint)
+            .Sum(product => product.Quantity);
+        int missingUnit = products.Count(product => string.IsNullOrWhiteSpace(product.Unit));
         lblSummary.Text =
-            $"{products.Count:N0} sản phẩm • Tổng số lượng {products.Sum(x => x.Quantity):N0} • Ô màu vàng có thể sửa";
+            $"{products.Count:N0} dòng • Chọn in {includedCount:N0} dòng / {includedQuantity:N0} tem" +
+            (missingUnit > 0 ? $" • ⚠ {missingUnit:N0} dòng thiếu đơn vị tính" : "");
     }
 
     private void ReloadTemplates()
@@ -840,7 +1006,8 @@ public class FormMain : Form
     {
         List<string> templateIssues = selectedLabel?.GetReadinessIssues() ?? [];
         bool barTenderReady = ConfigService.Instance.IsBarTenderExecutableValid();
-        bool previewReady = products.Count > 0 && selectedLabel != null &&
+        bool hasSelectedProducts = products.Any(product => product.IncludeForPrint);
+        bool previewReady = hasSelectedProducts && selectedLabel != null &&
                             templateIssues.Count == 0;
         bool printReady = previewReady && barTenderReady;
         btnPreview.Enabled = previewReady;
@@ -851,8 +1018,8 @@ public class FormMain : Form
                 ? "Cần sửa mẫu: " + string.Join(" • ", templateIssues)
                 : !barTenderReady
                     ? "Có thể xem trước. Muốn in, hãy chọn đúng bartend.exe trong Quản lý mẫu tem."
-                : products.Count == 0
-                    ? $"✓ {selectedLabel.Name} đã sẵn sàng. Hãy chọn file Excel."
+                : !hasSelectedProducts
+                    ? $"✓ {selectedLabel.Name} đã sẵn sàng. Hãy chọn ít nhất một dòng để in."
                     : $"✓ Sẽ in bằng: {selectedLabel.Name}";
         lblTemplateState.BackColor = printReady ? Color.FromArgb(224, 243, 235) : AppTheme.SurfaceMuted;
         lblTemplateState.ForeColor = printReady ? AppTheme.AccentDark : AppTheme.Muted;
@@ -862,19 +1029,27 @@ public class FormMain : Form
     {
         if (!EnsureReady()) return;
         grid.EndEdit();
+        List<ProductRow> selectedProducts = products
+            .Where(product => product.IncludeForPrint)
+            .Select(CloneProduct)
+            .ToList();
         using var form = new FormPreview(
             selectedExcelPath,
             selectedLabel!.Code,
             "",
-            products.Select(CloneProduct).ToList());
+            selectedProducts);
         form.ShowDialog(this);
     }
 
     private async void Print_Click(object? sender, EventArgs e)
     {
         if (!EnsureReady()) return;
+        List<ProductRow> selectedProducts = products
+            .Where(product => product.IncludeForPrint)
+            .Select(CloneProduct)
+            .ToList();
         var answer = MessageBox.Show(
-            $"In {products.Sum(x => x.Quantity):N0} tem bằng mẫu “{selectedLabel!.Name}”?",
+            $"In {selectedProducts.Sum(x => x.Quantity):N0} tem từ {selectedProducts.Count:N0} dòng bằng mẫu “{selectedLabel!.Name}”?",
             "Xác nhận in", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
         if (answer != DialogResult.Yes) return;
 
@@ -885,9 +1060,8 @@ public class FormMain : Form
         try
         {
             grid.EndEdit();
-            var printProducts = products.Select(CloneProduct).ToList();
             var count = await Task.Run(() => labelService.PrintProducts(
-                printProducts,
+                selectedProducts,
                 selectedExcelPath,
                 selectedLabel.Code,
                 ""));
@@ -910,6 +1084,11 @@ public class FormMain : Form
         if (products.Count == 0 || selectedLabel == null)
         {
             MessageBox.Show("Hãy chọn file Excel và loại tem trước.", "Chưa đủ thông tin");
+            return false;
+        }
+        if (!products.Any(product => product.IncludeForPrint))
+        {
+            MessageBox.Show("Hãy đánh dấu ít nhất một dòng trong cột “In”.", "Chưa chọn dữ liệu");
             return false;
         }
         return true;
@@ -940,6 +1119,7 @@ public class FormMain : Form
 
     private static ProductRow CloneProduct(ProductRow item) => new()
     {
+        IncludeForPrint = item.IncludeForPrint,
         StoreName = item.StoreName,
         Category = item.Category,
         ProductCode = item.ProductCode,

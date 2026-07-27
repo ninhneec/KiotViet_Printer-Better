@@ -50,6 +50,10 @@ Chế độ này không cần chọn file data trung gian.
 - `Delete` xóa nội dung ô đã chọn, `Ctrl+Z` hoàn tác lần sửa gần nhất.
 - `Ctrl+D` điền nội dung ô trên xuống vùng chọn, `Ctrl+R` điền nội dung ô bên trái sang vùng chọn.
 - `Ctrl+S` lưu dữ liệu đã sửa thành file Excel mới.
+- Tìm nhanh theo mã hoặc tên hàng; lọc dòng thiếu/có đơn vị tính, giá bằng 0, được chọn in hoặc đang bỏ qua.
+- Cột `In` quyết định dòng nào được đưa vào Xem trước và gửi sang BarTender.
+- Có thể chọn in/bỏ in toàn bộ kết quả đang lọc hoặc xóa các dòng đang lọc; file KiotViet gốc không bị thay đổi.
+- Dòng thiếu `Đơn vị tính` được tô đỏ và đếm cảnh báo trên thanh tóm tắt.
 - Có thể xóa các dòng đã chọn hoặc lưu dữ liệu đã sửa thành file `.xlsx` mới.
 - Dùng thanh trượt, nút `−` / `+` hoặc giữ `Ctrl` và lăn chuột để zoom từ 50% đến 200%.
 - Có thể dùng `Ctrl++`, `Ctrl+-` và `Ctrl+0` để tăng, giảm hoặc đặt lại zoom 100%.
