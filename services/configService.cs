@@ -118,9 +118,80 @@ public class ConfigService
 
     public bool IsBarTenderExecutableValid()
     {
-        string path = Config.BarTenderExe;
+        string path = ResolveBarTenderExecutable(Config.BarTenderExe);
         return File.Exists(path) &&
                Path.GetFileName(path).Equals("bartend.exe", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public string ResolveBarTenderExecutable(string configuredPath)
+    {
+        string path = (configuredPath ?? "").Trim().Trim('"');
+        if (string.IsNullOrWhiteSpace(path))
+            return "";
+        if (File.Exists(path))
+        {
+            if (Path.GetExtension(path).Equals(".lnk", StringComparison.OrdinalIgnoreCase))
+                return ResolveWindowsShortcut(path);
+            return path;
+        }
+        if (!Directory.Exists(path))
+            return path;
+
+        string direct = Path.Combine(path, "bartend.exe");
+        if (File.Exists(direct))
+            return direct;
+        try
+        {
+            foreach (string shortcut in Directory.EnumerateFiles(path, "*.lnk", SearchOption.TopDirectoryOnly))
+            {
+                string target = ResolveWindowsShortcut(shortcut);
+                if (File.Exists(target) &&
+                    Path.GetFileName(target).Equals("bartend.exe", StringComparison.OrdinalIgnoreCase))
+                    return target;
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+        return path;
+    }
+
+    private static string ResolveWindowsShortcut(string shortcutPath)
+    {
+        object? shell = null;
+        object? shortcut = null;
+        try
+        {
+            Type? shellType = Type.GetTypeFromProgID("WScript.Shell");
+            if (shellType == null) return shortcutPath;
+            shell = Activator.CreateInstance(shellType);
+            shortcut = shellType.InvokeMember(
+                "CreateShortcut",
+                System.Reflection.BindingFlags.InvokeMethod,
+                null,
+                shell,
+                [shortcutPath]);
+            return shortcut?.GetType().InvokeMember(
+                "TargetPath",
+                System.Reflection.BindingFlags.GetProperty,
+                null,
+                shortcut,
+                null)?.ToString() ?? shortcutPath;
+        }
+        catch
+        {
+            return shortcutPath;
+        }
+        finally
+        {
+            if (shortcut != null && System.Runtime.InteropServices.Marshal.IsComObject(shortcut))
+                System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shortcut);
+            if (shell != null && System.Runtime.InteropServices.Marshal.IsComObject(shell))
+                System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell);
+        }
     }
 
     public IReadOnlyList<string> FindBarTenderExecutables()

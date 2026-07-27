@@ -21,7 +21,8 @@ public class BarTenderService
 
         try
         {
-        string bartenderExe = ConfigService.Instance.Config.BarTenderExe;
+        string configuredBarTenderPath = ConfigService.Instance.Config.BarTenderExe;
+        string bartenderExe = ConfigService.Instance.ResolveBarTenderExecutable(configuredBarTenderPath);
 
         if (string.IsNullOrWhiteSpace(bartenderExe))
             throw new Exception("Chưa cấu hình đường dẫn BarTender.exe.");
@@ -31,7 +32,8 @@ public class BarTenderService
         if (!Path.GetFileName(bartenderExe).Equals("bartend.exe", StringComparison.OrdinalIgnoreCase))
             throw new Exception(
                 "File đang chọn không phải chương trình BarTender.\n\n" +
-                $"Đang chọn: {bartenderExe}\n\n" +
+                $"Đã chọn: {configuredBarTenderPath}\n" +
+                $"Đã giải đường dẫn: {bartenderExe}\n\n" +
                 "Mở Quản lý mẫu tem và chọn đúng file bartend.exe.");
 
         if (string.IsNullOrWhiteSpace(btwFile))

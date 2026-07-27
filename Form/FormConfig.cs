@@ -552,10 +552,10 @@ public class FormConfig : Form
         IReadOnlyList<string> detected = ConfigService.Instance.FindBarTenderExecutables();
         using OpenFileDialog dialog = new()
         {
-            Filter = "BarTender (bartend.exe)|bartend.exe|Mọi ứng dụng (*.exe)|*.exe|Tất cả file (*.*)|*.*",
-            Title = "Chọn ứng dụng BarTender hoặc một đường dẫn bất kỳ",
+            Filter = "BarTender hoặc shortcut|bartend.exe;*.lnk|Mọi ứng dụng (*.exe)|*.exe|Shortcut (*.lnk)|*.lnk|Tất cả file (*.*)|*.*",
+            Title = "Chọn bartend.exe hoặc shortcut BarTender trong Start Menu",
             CheckFileExists = true,
-            FilterIndex = 2
+            FilterIndex = 1
         };
         if (File.Exists(txtBarTender.Text))
             dialog.InitialDirectory = Path.GetDirectoryName(txtBarTender.Text);
@@ -579,6 +579,7 @@ public class FormConfig : Form
         lblStatus.Text =
             "✓ Đã ghi ngay vào config.json" +
             $"\nBarTender: {configService.Config.BarTenderExe}" +
+            $"\nThực thi: {configService.ResolveBarTenderExecutable(configService.Config.BarTenderExe)}" +
             $"\nMẫu tem: {txtTemplate.Text.Trim()}" +
             $"\nData: {txtDataFile.Text.Trim()}";
         lblStatus.BackColor = Color.FromArgb(224, 243, 235);

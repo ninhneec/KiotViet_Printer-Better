@@ -287,6 +287,17 @@ internal static class Program
                 ConfigService.Instance.Load();
                 Assert(ConfigService.Instance.Config.BarTenderExe == freelySelectedExe,
                     "Đường dẫn tự do bị đổi sau khi load lại config.");
+
+                string bartenderFolder = Path.Combine(runtime, "BarTender 10.1");
+                Directory.CreateDirectory(bartenderFolder);
+                string resolvedBartender = Path.Combine(bartenderFolder, "bartend.exe");
+                File.Copy(sourceTemplate, resolvedBartender);
+                Assert(ConfigService.Instance.ResolveBarTenderExecutable(bartenderFolder) == resolvedBartender,
+                    "Không giải được thư mục chứa bartend.exe.");
+                string shortcutPath = Path.Combine(runtime, "BarTender 10.1.lnk");
+                CreateShortcut(shortcutPath, resolvedBartender);
+                Assert(ConfigService.Instance.ResolveBarTenderExecutable(shortcutPath) == resolvedBartender,
+                    "Không giải được shortcut Start Menu tới bartend.exe.");
             }
 
             string missingTemplate = Path.Combine(runtime, "duong-dan-nguoi-dung", "mau-khong-ton-tai.btw");
@@ -325,6 +336,7 @@ internal static class Program
             Console.WriteLine("PASS: Settings preserve selected data/template");
             Console.WriteLine("PASS: Missing user paths never reset to managed defaults");
             Console.WriteLine("PASS: Freely selected app path is persisted immediately");
+            Console.WriteLine("PASS: BarTender folder and Start Menu shortcut resolution");
             Console.WriteLine("PASS: Flow designer is visible from Settings");
             Console.WriteLine($"Runtime: {runtime}");
             return 0;
@@ -361,6 +373,35 @@ internal static class Program
                 return nested;
         }
         return null;
+    }
+
+    private static void CreateShortcut(string shortcutPath, string targetPath)
+    {
+        Type shellType = Type.GetTypeFromProgID("WScript.Shell")
+            ?? throw new Exception("Windows Script Host không khả dụng.");
+        object shell = Activator.CreateInstance(shellType)!;
+        object shortcut = shellType.InvokeMember(
+            "CreateShortcut",
+            BindingFlags.InvokeMethod,
+            null,
+            shell,
+            [shortcutPath])!;
+        shortcut.GetType().InvokeMember(
+            "TargetPath",
+            BindingFlags.SetProperty,
+            null,
+            shortcut,
+            [targetPath]);
+        shortcut.GetType().InvokeMember(
+            "Save",
+            BindingFlags.InvokeMethod,
+            null,
+            shortcut,
+            null);
+        if (System.Runtime.InteropServices.Marshal.IsComObject(shortcut))
+            System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shortcut);
+        if (System.Runtime.InteropServices.Marshal.IsComObject(shell))
+            System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell);
     }
 
     private static void Invoke(object instance, string name, params object[] args)
