@@ -61,7 +61,7 @@ public class FormMain : Form
             Font = AppTheme.Body(10), ForeColor = Color.FromArgb(195, 211, 206)
         });
 
-        var config = new Button { Text = "Mẫu tem & cài đặt", Width = 170, Height = 40, Top = 25 };
+        var config = new Button { Text = "Mẫu tem && cài đặt", Width = 170, Height = 40, Top = 25 };
         config.Left = header.Width - 322;
         config.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         AppTheme.StyleSecondary(config);

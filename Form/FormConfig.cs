@@ -26,6 +26,10 @@ public class FormConfig : Form
     private readonly Button btnSave = new();
     private readonly BindingList<LabelDefinition> labels = new();
     private bool loading;
+    private sealed record HandlerOption(string Code, string Label)
+    {
+        public override string ToString() => Label;
+    }
 
     public FormConfig()
     {
@@ -45,7 +49,7 @@ public class FormConfig : Form
         var header = new Panel { Dock = DockStyle.Top, Height = 96, BackColor = AppTheme.Ink };
         header.Controls.Add(new Label
         {
-            Text = "Mẫu tem & dữ liệu",
+            Text = "Mẫu tem && dữ liệu",
             Left = 32, Top = 18, Width = 540, Height = 38,
             Font = AppTheme.Display(22), ForeColor = Color.White
         });
@@ -55,8 +59,6 @@ public class FormConfig : Form
             Left = 34, Top = 57, Width = 720, Height = 24,
             Font = AppTheme.Body(10), ForeColor = Color.FromArgb(196, 211, 206)
         });
-        Controls.Add(header);
-
         var footer = new Panel { Dock = DockStyle.Bottom, Height = 76, BackColor = AppTheme.Surface };
         btnSave.Text = "Lưu thay đổi";
         btnSave.SetBounds(Width - 210, 17, 160, 42);
@@ -71,8 +73,6 @@ public class FormConfig : Form
         AppTheme.StyleSecondary(btnCancel);
         btnCancel.Click += (_, _) => Close();
         footer.Controls.Add(btnCancel);
-        Controls.Add(footer);
-
         var body = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -83,11 +83,14 @@ public class FormConfig : Form
         };
         body.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 310));
         body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        Controls.Add(body);
-        body.BringToFront();
-
         body.Controls.Add(BuildLabelList(), 0, 0);
         body.Controls.Add(BuildEditor(), 1, 0);
+
+        // Thứ tự thêm control rất quan trọng với WinForms Dock.
+        // Fill phải được thêm trước, sau đó footer/header để chúng không bị che.
+        Controls.Add(body);
+        Controls.Add(footer);
+        Controls.Add(header);
     }
 
     private Control BuildLabelList()
@@ -160,14 +163,25 @@ public class FormConfig : Form
 
         AddTitle(layout, "Thông tin mẫu", "Tên và mô tả sẽ xuất hiện ở màn hình chọn tem.", 0);
         AddField(layout, "Tên loại tem", txtName, 1);
-        AddField(layout, "Mã nhận diện", txtCode, 2);
+        txtCode.ReadOnly = true;
+        txtCode.BackColor = AppTheme.SurfaceMuted;
+        AddField(layout, "Mã mẫu (tự động)", txtCode, 2);
         AddField(layout, "Mô tả ngắn", txtDescription, 3);
         AddFileField(layout, "File BarTender", txtTemplate, "Chọn .btw", "*.btw", 4);
         AddFileField(layout, "File dữ liệu", txtData, "Chọn data", "*.xls;*.xlsx;*.csv", 5);
 
         cboHandler.DropDownStyle = ComboBoxStyle.DropDownList;
-        cboHandler.Items.AddRange(["DIRECT_PRICE", "GENERIC", "FULL", "BARCODE", "GLASSES"]);
-        AddField(layout, "Cách xử lý", cboHandler, 6);
+        cboHandler.DisplayMember = nameof(HandlerOption.Label);
+        cboHandler.ValueMember = nameof(HandlerOption.Code);
+        cboHandler.DataSource = new List<HandlerOption>
+        {
+            new("DIRECT_PRICE", "In trực tiếp: Tên hàng + Giá bán + Đơn vị tính"),
+            new("FULL", "Tem đầy đủ từ file dữ liệu"),
+            new("BARCODE", "Tem mã vạch có mã nhân viên"),
+            new("GLASSES", "Tem kính chuyên dụng"),
+            new("GENERIC", "Mẫu tùy chỉnh dùng file dữ liệu")
+        };
+        AddField(layout, "Loại tem", cboHandler, 6);
 
         var options = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
         chkEnabled.Text = "Hiển thị mẫu này trong app";
@@ -200,7 +214,7 @@ public class FormConfig : Form
 
         foreach (var text in new[] { txtName, txtCode, txtDescription, txtTemplate, txtData })
             text.TextChanged += (_, _) => UpdateSelectedFromEditor();
-        cboHandler.SelectedIndexChanged += (_, _) => UpdateSelectedFromEditor();
+        cboHandler.SelectedIndexChanged += (_, _) => HandlerChanged();
 
         return host;
     }
@@ -292,14 +306,15 @@ public class FormConfig : Form
             txtDescription.Text = item.Description;
             txtTemplate.Text = item.TemplatePath;
             txtData.Text = item.DataFilePath;
-            cboHandler.SelectedItem = item.HandlerType;
-            if (cboHandler.SelectedIndex < 0) cboHandler.SelectedItem = "GENERIC";
+            cboHandler.SelectedValue = item.HandlerType;
+            if (cboHandler.SelectedIndex < 0) cboHandler.SelectedValue = "GENERIC";
             chkEnabled.Checked = item.IsEnabled;
             chkEmployee.Checked = item.RequiresEmployeeCode;
             chkParser.Checked = item.UseBarcodeParser;
             chkAppendEmployee.Checked = item.AppendEmployeeCode;
         }
         loading = false;
+        ApplyModeUi();
         UpdateStatus();
     }
 
@@ -311,13 +326,64 @@ public class FormConfig : Form
         item.Description = txtDescription.Text.Trim();
         item.TemplatePath = txtTemplate.Text.Trim();
         item.DataFilePath = txtData.Text.Trim();
-        item.HandlerType = cboHandler.SelectedItem?.ToString() ?? "GENERIC";
+        item.HandlerType = cboHandler.SelectedValue?.ToString() ?? "GENERIC";
         item.IsEnabled = chkEnabled.Checked;
         item.RequiresEmployeeCode = chkEmployee.Checked;
         item.UseBarcodeParser = chkParser.Checked;
         item.AppendEmployeeCode = chkAppendEmployee.Checked;
         RefreshList();
         UpdateStatus();
+    }
+
+    private void HandlerChanged()
+    {
+        if (loading) return;
+
+        string mode = cboHandler.SelectedValue?.ToString() ?? "GENERIC";
+        loading = true;
+
+        switch (mode)
+        {
+            case "DIRECT_PRICE":
+            case "FULL":
+            case "GENERIC":
+                chkEmployee.Checked = false;
+                chkParser.Checked = false;
+                chkAppendEmployee.Checked = false;
+                break;
+
+            case "BARCODE":
+                chkEmployee.Checked = true;
+                chkParser.Checked = true;
+                chkAppendEmployee.Checked = true;
+                break;
+
+            case "GLASSES":
+                chkEmployee.Checked = false;
+                chkParser.Checked = false;
+                chkAppendEmployee.Checked = false;
+                break;
+        }
+
+        loading = false;
+        ApplyModeUi();
+        UpdateSelectedFromEditor();
+    }
+
+    private void ApplyModeUi()
+    {
+        string mode = cboHandler.SelectedValue?.ToString() ?? "GENERIC";
+        bool direct = mode == "DIRECT_PRICE";
+        bool barcode = mode == "BARCODE";
+
+        txtData.Enabled = !direct;
+        txtData.BackColor = direct ? AppTheme.SurfaceMuted : AppTheme.Surface;
+        chkEmployee.Enabled = barcode;
+        chkParser.Enabled = barcode;
+        chkAppendEmployee.Enabled = barcode;
+
+        if (direct)
+            txtData.Text = "";
     }
 
     private void UpdateStatus()
@@ -370,11 +436,6 @@ public class FormConfig : Form
     private void Save_Click(object? sender, EventArgs e)
     {
         UpdateSelectedFromEditor();
-        if (string.IsNullOrWhiteSpace(txtBarTender.Text))
-        {
-            MessageBox.Show("Hãy chọn file BarTender.exe trước khi lưu.", "Thiếu BarTender");
-            return;
-        }
         var duplicate = labels.GroupBy(x => x.Code, StringComparer.OrdinalIgnoreCase).FirstOrDefault(x => x.Count() > 1);
         if (duplicate != null)
         {
