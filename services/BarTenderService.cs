@@ -64,6 +64,11 @@ public class BarTenderService
                                  (namedSubStrings == null || namedSubStrings.Count == 0);
             bool hasRunningBarTender = Process.GetProcessesByName("bartend").Length > 0;
             if (databaseBatch && hasRunningBarTender)
+            {
+                RecoverHiddenBarTenderProcesses();
+                hasRunningBarTender = Process.GetProcessesByName("bartend").Length > 0;
+            }
+            if (databaseBatch && hasRunningBarTender)
                 throw new Exception(
                     "BarTender đang mở hoặc đang đứng ở cửa sổ Print.\n\n" +
                     "Hãy đóng toàn bộ BarTender rồi bấm In lại. App không chạy " +
@@ -183,6 +188,48 @@ public class BarTenderService
         return value.Contains("Severity=\"Error\"", StringComparison.OrdinalIgnoreCase) ||
                value.Contains("<Error", StringComparison.OrdinalIgnoreCase) ||
                value.Contains("ErrorCode", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void RecoverHiddenBarTenderProcesses()
+    {
+        Process[] processes = Process.GetProcessesByName("bartend");
+        bool hasVisibleWindow = processes.Any(process =>
+        {
+            try
+            {
+                return !process.HasExited && process.MainWindowHandle != IntPtr.Zero;
+            }
+            catch
+            {
+                return false;
+            }
+        });
+        if (hasVisibleWindow)
+        {
+            foreach (Process process in processes)
+                process.Dispose();
+            return;
+        }
+
+        foreach (Process process in processes)
+        {
+            try
+            {
+                WritePrintLog($"RECOVER hidden_process pid={process.Id}");
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit(5000);
+            }
+            catch (Exception ex)
+            {
+                WritePrintLog($"RECOVER_FAILED pid={process.Id} message={ex.Message}");
+            }
+            finally
+            {
+                process.Dispose();
+            }
+        }
+
+        Thread.Sleep(500);
     }
 
     private static string LimitLog(string value)
