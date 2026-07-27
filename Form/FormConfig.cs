@@ -539,10 +539,10 @@ public class FormConfig : Form
         IReadOnlyList<string> detected = ConfigService.Instance.FindBarTenderExecutables();
         using OpenFileDialog dialog = new()
         {
-            Filter = "BarTender (bartend.exe)|bartend.exe",
-            Title = "Chọn đúng file bartend.exe của BarTender",
+            Filter = "BarTender (bartend.exe)|bartend.exe|Mọi ứng dụng (*.exe)|*.exe|Tất cả file (*.*)|*.*",
+            Title = "Chọn ứng dụng BarTender hoặc một đường dẫn bất kỳ",
             CheckFileExists = true,
-            FileName = "bartend.exe"
+            FilterIndex = 2
         };
         if (File.Exists(txtBarTender.Text))
             dialog.InitialDirectory = Path.GetDirectoryName(txtBarTender.Text);
@@ -551,15 +551,6 @@ public class FormConfig : Form
 
         if (dialog.ShowDialog(this) != DialogResult.OK)
             return;
-        if (!Path.GetFileName(dialog.FileName).Equals("bartend.exe", StringComparison.OrdinalIgnoreCase))
-        {
-            MessageBox.Show(
-                "File này không phải bartend.exe.\n\nHãy mở thư mục cài BarTender và chọn đúng bartend.exe.",
-                "Chọn sai ứng dụng",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Warning);
-            return;
-        }
         txtBarTender.Text = dialog.FileName;
         UpdateStatus();
     }
