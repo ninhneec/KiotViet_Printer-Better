@@ -43,10 +43,11 @@ public class FormMain : Form
     {
         Text = "In tem KiotViet";
         MinimumSize = new Size(1100, 700);
-        Size = new Size(1360, 860);
+        Size = new Size(1440, 900);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = AppTheme.Canvas;
         Font = AppTheme.Body();
+        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         AllowDrop = true;
         DragEnter += OnDragEnter;
         DragDrop += OnDragDrop;
@@ -60,23 +61,219 @@ public class FormMain : Form
     {
         Controls.Add(BuildFooter());
         Controls.Add(BuildBody());
-        Controls.Add(BuildHeader());
+        Controls.Add(BuildWorkspaceHeader());
+        Controls.Add(BuildSidebar());
+    }
+
+    private Control BuildSidebar()
+    {
+        Panel sidebar = new()
+        {
+            Dock = DockStyle.Left,
+            Width = 238,
+            BackColor = Color.FromArgb(18, 52, 42),
+            Padding = new Padding(18, 20, 18, 18)
+        };
+
+        string logoPath = Path.Combine(AppContext.BaseDirectory, "assets", "app-icon.png");
+        if (File.Exists(logoPath))
+        {
+            sidebar.Controls.Add(new PictureBox
+            {
+                Image = Image.FromFile(logoPath),
+                SizeMode = PictureBoxSizeMode.Zoom,
+                Left = 67,
+                Top = 22,
+                Width = 104,
+                Height = 104
+            });
+        }
+
+        sidebar.Controls.Add(new Label
+        {
+            Text = "KiotViet",
+            Left = 24,
+            Top = 130,
+            Width = 190,
+            Height = 34,
+            Font = AppTheme.Display(20),
+            ForeColor = Color.White,
+            TextAlign = ContentAlignment.MiddleCenter
+        });
+        sidebar.Controls.Add(new Label
+        {
+            Text = "In tem sản phẩm",
+            Left = 24,
+            Top = 164,
+            Width = 190,
+            Height = 22,
+            Font = AppTheme.Body(9.5F),
+            ForeColor = Color.FromArgb(180, 205, 195),
+            TextAlign = ContentAlignment.MiddleCenter
+        });
+        sidebar.Controls.Add(new Label
+        {
+            Text = "Ninh Đen Big Trend",
+            Left = 20,
+            Top = 205,
+            Width = 198,
+            Height = 44,
+            Font = AppTheme.Body(9.5F, FontStyle.Bold),
+            ForeColor = Color.FromArgb(221, 239, 232),
+            BackColor = Color.FromArgb(27, 68, 54),
+            TextAlign = ContentAlignment.MiddleCenter
+        });
+
+        Button print = CreateSidebarButton("▣   In tem", 282, true);
+        sidebar.Controls.Add(print);
+
+        Button templates = CreateSidebarButton("◇   Mẫu tem", 340);
+        templates.Click += (_, _) =>
+        {
+            using FormConfig form = new();
+            form.ShowDialog(this);
+            ReloadTemplates();
+        };
+        sidebar.Controls.Add(templates);
+
+        Button flow = CreateSidebarButton("◫   Ghép dữ liệu", 398);
+        flow.Click += (_, _) =>
+        {
+            using FormFlowWizard form = new();
+            form.ShowDialog(this);
+        };
+        sidebar.Controls.Add(flow);
+
+        Button history = CreateSidebarButton("◴   Lịch sử", 456);
+        history.Click += (_, _) =>
+        {
+            using FormHistory form = new();
+            form.ShowDialog(this);
+        };
+        sidebar.Controls.Add(history);
+
+        Button settings = CreateSidebarButton("⚙   Cài đặt máy in", sidebar.Height - 66);
+        settings.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;
+        settings.Click += (_, _) =>
+        {
+            using FormConfig form = new();
+            form.ShowDialog(this);
+            ReloadTemplates();
+        };
+        sidebar.Controls.Add(settings);
+
+        return sidebar;
+    }
+
+    private static Button CreateSidebarButton(string text, int top, bool active = false)
+    {
+        Button button = new()
+        {
+            Text = text,
+            Left = 18,
+            Top = top,
+            Width = 202,
+            Height = 46,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(16, 0, 0, 0),
+            FlatStyle = FlatStyle.Flat,
+            BackColor = active ? AppTheme.Accent : Color.FromArgb(18, 52, 42),
+            ForeColor = Color.White,
+            Font = AppTheme.Body(10.5F, FontStyle.Bold),
+            Cursor = Cursors.Hand,
+            UseVisualStyleBackColor = false
+        };
+        button.FlatAppearance.BorderSize = 0;
+        button.FlatAppearance.MouseOverBackColor = active
+            ? Color.FromArgb(22, 139, 98)
+            : Color.FromArgb(27, 68, 54);
+        button.FlatAppearance.MouseDownBackColor = AppTheme.AccentDark;
+        return button;
+    }
+
+    private Control BuildWorkspaceHeader()
+    {
+        Panel header = new()
+        {
+            Dock = DockStyle.Top,
+            Height = 86,
+            BackColor = AppTheme.Surface,
+            Padding = new Padding(28, 14, 28, 10)
+        };
+        header.Controls.Add(new Label
+        {
+            Text = "In tem sản phẩm",
+            Left = 28,
+            Top = 14,
+            Width = 420,
+            Height = 34,
+            Font = AppTheme.Display(20),
+            ForeColor = AppTheme.Ink
+        });
+        header.Controls.Add(new Label
+        {
+            Text = "Chọn file Excel, kiểm tra dữ liệu và in — mọi thứ nằm trên một màn hình.",
+            Left = 30,
+            Top = 50,
+            Width = 650,
+            Height = 22,
+            Font = AppTheme.Body(9.5F),
+            ForeColor = AppTheme.Muted
+        });
+        header.Controls.Add(new Label
+        {
+            Text = "?  Hướng dẫn",
+            Width = 112,
+            Height = 36,
+            Top = 25,
+            Left = header.Width - 142,
+            Anchor = AnchorStyles.Top | AnchorStyles.Right,
+            Font = AppTheme.Body(9.5F, FontStyle.Bold),
+            ForeColor = AppTheme.Muted,
+            TextAlign = ContentAlignment.MiddleCenter
+        });
+        return header;
     }
 
     private Control BuildHeader()
     {
-        var header = new Panel { Dock = DockStyle.Top, Height = 104, BackColor = AppTheme.Ink };
+        var header = new Panel { Dock = DockStyle.Top, Height = 92, BackColor = AppTheme.Surface };
+        string logoPath = Path.Combine(AppContext.BaseDirectory, "assets", "app-icon.png");
+        if (File.Exists(logoPath))
+        {
+            header.Controls.Add(new PictureBox
+            {
+                Image = Image.FromFile(logoPath),
+                SizeMode = PictureBoxSizeMode.Zoom,
+                Left = 24,
+                Top = 12,
+                Width = 66,
+                Height = 66
+            });
+        }
+        header.Controls.Add(new Label
+        {
+            Text = "by Ninh Đen Big Trend",
+            Left = 590,
+            Top = 18,
+            Width = 190,
+            Height = 24,
+            Font = AppTheme.Body(8.5F, FontStyle.Bold),
+            ForeColor = AppTheme.AccentDark,
+            BackColor = AppTheme.AccentSoft,
+            TextAlign = ContentAlignment.MiddleCenter
+        });
         header.Controls.Add(new Label
         {
             Text = "In tem KiotViet",
-            Left = 30, Top = 17, Width = 360, Height = 40,
-            Font = AppTheme.Display(23), ForeColor = Color.White
+            Left = 101, Top = 12, Width = 360, Height = 36,
+            Font = AppTheme.Display(20), ForeColor = AppTheme.Ink
         });
         header.Controls.Add(new Label
         {
             Text = "Đưa file vào, kiểm tra nhanh rồi in — app tự xử lý file data BarTender.",
-            Left = 32, Top = 60, Width = 650, Height = 24,
-            Font = AppTheme.Body(10), ForeColor = Color.FromArgb(195, 211, 206)
+            Left = 102, Top = 48, Width = 650, Height = 22,
+            Font = AppTheme.Body(9.5F), ForeColor = AppTheme.Muted
         });
 
         var config = new Button { Text = "Quản lý mẫu tem", Width = 166, Height = 40, Top = 31 };
@@ -117,12 +314,12 @@ public class FormMain : Form
         var body = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            Padding = new Padding(24, 20, 24, 14),
+            Padding = new Padding(24, 18, 24, 12),
             RowCount = 2,
             ColumnCount = 2,
             BackColor = AppTheme.Canvas
         };
-        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 126));
+        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 118));
         body.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 68));
         body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32));
@@ -136,7 +333,7 @@ public class FormMain : Form
 
     private Control BuildFileStep()
     {
-        var panel = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.Surface, Padding = new Padding(22) };
+        var panel = new CardPanel { Dock = DockStyle.Fill, BackColor = AppTheme.Surface, Padding = new Padding(22) };
         panel.Controls.Add(new Label
         {
             Text = "01",
@@ -171,7 +368,7 @@ public class FormMain : Form
 
     private Control BuildDataPanel()
     {
-        var panel = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.Surface, Margin = new Padding(0, 14, 10, 0), Padding = new Padding(20) };
+        var panel = new CardPanel { Dock = DockStyle.Fill, BackColor = AppTheme.Surface, Margin = new Padding(0, 14, 10, 0), Padding = new Padding(20) };
         panel.Controls.Add(new Label
         {
             Text = "02  Kiểm tra và sửa dữ liệu",
@@ -413,6 +610,13 @@ public class FormMain : Form
         grid.EnableHeadersVisualStyles = false;
         grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(218, 238, 231);
         grid.DefaultCellStyle.SelectionForeColor = AppTheme.Ink;
+        grid.DefaultCellStyle.BackColor = AppTheme.Surface;
+        grid.DefaultCellStyle.ForeColor = AppTheme.Ink;
+        grid.DefaultCellStyle.Padding = new Padding(5, 0, 5, 0);
+        grid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 247);
+        grid.RowTemplate.Height = 36;
+        grid.ColumnHeadersHeight = 40;
+        grid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
         grid.CellValidating += Grid_CellValidating;
         grid.CellBeginEdit += (_, e) => valueBeforeEdit = grid[e.ColumnIndex, e.RowIndex].Value;
         grid.CellEndEdit += Grid_CellEndEdit;
@@ -455,7 +659,7 @@ public class FormMain : Form
 
     private Control BuildTemplatePanel()
     {
-        var panel = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.Surface, Margin = new Padding(10, 14, 0, 0), Padding = new Padding(20) };
+        var panel = new CardPanel { Dock = DockStyle.Fill, BackColor = AppTheme.Surface, Margin = new Padding(10, 14, 0, 0), Padding = new Padding(20) };
         panel.Controls.Add(new Label
         {
             Text = "03  Chọn mẫu tem",
@@ -480,12 +684,12 @@ public class FormMain : Form
 
     private Control BuildFooter()
     {
-        var footer = new Panel { Dock = DockStyle.Bottom, Height = 94, BackColor = AppTheme.Surface, Padding = new Padding(24) };
+        var footer = new Panel { Dock = DockStyle.Bottom, Height = 84, BackColor = AppTheme.Surface, Padding = new Padding(24) };
         btnPrint.Text = "In tem ngay";
         btnPrint.Width = 190;
         btnPrint.Height = 48;
         btnPrint.Left = footer.Width - 216;
-        btnPrint.Top = 22;
+        btnPrint.Top = 18;
         btnPrint.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         AppTheme.StylePrimary(btnPrint);
         btnPrint.Enabled = false;
@@ -496,7 +700,7 @@ public class FormMain : Form
         btnPreview.Width = 176;
         btnPreview.Height = 48;
         btnPreview.Left = btnPrint.Left - 190;
-        btnPreview.Top = 22;
+        btnPreview.Top = 18;
         btnPreview.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         AppTheme.StyleSecondary(btnPreview);
         btnPreview.Enabled = false;
@@ -506,7 +710,7 @@ public class FormMain : Form
         footer.Controls.Add(new Label
         {
             Text = "File KiotViet gốc luôn được giữ nguyên. App chỉ cập nhật file data trung gian.",
-            Left = 26, Top = 35, Width = 620, Height = 24,
+            Left = 26, Top = 22, Width = 720, Height = 40,
             Font = AppTheme.Body(9.5F), ForeColor = AppTheme.Muted
         });
         return footer;
@@ -1192,13 +1396,14 @@ public class FormMain : Form
             Text = $"{item.Name}\r\n{(ready ? "Sẵn sàng" : string.Join(", ", issues))}",
             TextAlign = ContentAlignment.MiddleLeft,
             Width = Math.Max(280, templateList.ClientSize.Width - 28),
-            Height = 68,
-            Margin = new Padding(0, 0, 0, 9),
+            Height = 76,
+            Margin = new Padding(0, 0, 0, 10),
             Tag = item,
             Enabled = true,
             AutoEllipsis = true
         };
         AppTheme.StyleSecondary(button);
+        button.Padding = new Padding(14, 0, 12, 0);
         button.ForeColor = ready ? AppTheme.Ink : AppTheme.Muted;
         button.Click += (_, _) => SelectTemplate(item, button);
         return button;

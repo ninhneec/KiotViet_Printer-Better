@@ -28,6 +28,20 @@ internal static class Program
 
         ConfigService.Instance.Load();
 
+        int captureIndex = Array.FindIndex(
+            args,
+            value => value.Equals("--capture-ui", StringComparison.OrdinalIgnoreCase));
+        if (captureIndex >= 0 && captureIndex + 1 < args.Length)
+        {
+            using FormMain preview = new();
+            preview.Show();
+            Application.DoEvents();
+            using Bitmap bitmap = new(preview.ClientSize.Width, preview.ClientSize.Height);
+            preview.DrawToBitmap(bitmap, new Rectangle(Point.Empty, preview.ClientSize));
+            bitmap.Save(args[captureIndex + 1], System.Drawing.Imaging.ImageFormat.Png);
+            return;
+        }
+
         Application.Run(new FormMain());
     }
 }

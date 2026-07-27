@@ -1,8 +1,8 @@
 [Setup]
 AppId={{8E1A7C3D-2D91-4E37-8B54-123456789ABC}
 AppName=KiotViet Printer Better
-AppVersion=0.1.0-beta.39
-AppPublisher=ninhneec
+AppVersion=1.0.0
+AppPublisher=Ninh Đen Big Trend
 
 DefaultDirName={localappdata}\Programs\KiotViet Printer Better
 DefaultGroupName=KiotViet Printer Better
@@ -11,6 +11,7 @@ PrivilegesRequired=lowest
 
 OutputDir=installer_output
 OutputBaseFilename=KiotViet-Printer-Better-Setup
+SetupIconFile=assets\app-icon.ico
 
 Compression=lzma
 SolidCompression=yes
