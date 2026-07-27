@@ -12,10 +12,18 @@ public class BarTenderService
 
     public void Print(string btwFile)
     {
-        Print(btwFile, null);
+        Print(btwFile, null, null);
     }
 
     public void Print(string btwFile, Dictionary<string, string>? namedSubStrings)
+    {
+        Print(btwFile, namedSubStrings, null);
+    }
+
+    public void Print(
+        string btwFile,
+        Dictionary<string, string>? namedSubStrings,
+        int? recordCount)
     {
         PrintGate.Wait();
         string stage = "Khởi tạo";
@@ -44,12 +52,20 @@ public class BarTenderService
                     $"“{printerName}” là máy in ảo nên sẽ yêu cầu lưu file.\n\n" +
                     "Mở Quản lý mẫu tem và chọn máy in tem thật.");
 
-            xmlPath = CreatePrintXmlNearApp(btwFile, namedSubStrings, printerName);
+            xmlPath = CreatePrintXmlNearApp(
+                btwFile,
+                namedSubStrings,
+                printerName,
+                recordCount);
             WritePrintLog(
                 $"XML={xmlPath} printer={(string.IsNullOrWhiteSpace(printerName) ? "(trong file .btw)" : printerName)}");
 
             bool hasRunningBarTender = Process.GetProcessesByName("bartend").Length > 0;
-            string arguments = $"/XMLScript=\"{xmlPath}\"" + (hasRunningBarTender ? "" : " /X");
+            // BarTender yêu cầu /XMLScript là tham số CUỐI CÙNG. Nếu /X đứng sau,
+            // BarTender 10.x có thể trả ExitCode 0 nhưng không tạo job in.
+            string arguments = (hasRunningBarTender ? "" : "/X ") +
+                               $"/XMLScript=\"{xmlPath}\"";
+            WritePrintLog($"COMMAND exe={bartenderExe} args={arguments}");
             ProcessStartInfo psi = new()
             {
                 FileName = bartenderExe,
@@ -79,9 +95,15 @@ public class BarTenderService
                     "Có thể đang chờ một hộp thoại xác nhận.");
             string stdOut = stdOutTask.GetAwaiter().GetResult();
             string stdErr = stdErrTask.GetAwaiter().GetResult();
+            WritePrintLog($"RESPONSE stdout={LimitLog(stdOut)} stderr={LimitLog(stdErr)}");
             if (process.ExitCode != 0)
                 throw new Exception(
                     $"BarTender trả ExitCode {process.ExitCode}.\n\nSTDERR:\n{stdErr}\n\nSTDOUT:\n{stdOut}");
+
+            if (ContainsBarTenderError(stdOut) || ContainsBarTenderError(stdErr))
+                throw new Exception(
+                    "BarTender nhận lệnh nhưng từ chối tạo job in.\n\n" +
+                    $"STDERR:\n{stdErr}\n\nSTDOUT:\n{stdOut}");
 
             if (!string.IsNullOrWhiteSpace(printerName))
             {
@@ -128,6 +150,24 @@ public class BarTenderService
         catch
         {
         }
+    }
+
+    private static bool ContainsBarTenderError(string value)
+    {
+        return value.Contains("Severity=\"Error\"", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("<Error", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("ErrorCode", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string LimitLog(string value)
+    {
+        string singleLine = (value ?? string.Empty)
+            .Replace("\r", " ")
+            .Replace("\n", " ")
+            .Trim();
+        return singleLine.Length <= 4000
+            ? singleLine
+            : singleLine[..4000] + "...";
     }
 
     //---------------------------------------------------------
@@ -244,7 +284,8 @@ public class BarTenderService
     private static string CreatePrintXmlNearApp(
         string btwFile,
             Dictionary<string, string>? namedSubStrings,
-            string printerName)
+            string printerName,
+            int? recordCount)
     {
         string debugFolder = Path.Combine(ConfigService.Instance.DataDirectory, "debug_xml");
         Directory.CreateDirectory(debugFolder);
@@ -271,7 +312,9 @@ public class BarTenderService
             sb.AppendLine($"        <Printer>{EscapeXml(printerName)}</Printer>");
         // Ghi đè setting "First Record Only" có thể đã được lưu trong .btw.
         // Range lớn chỉ in đến record thực tế đang có trong file data.
-        sb.AppendLine("""        <RecordRange>1-999999</RecordRange>""");
+        if (recordCount is > 0)
+            sb.AppendLine($"        <RecordRange>1-{recordCount.Value}</RecordRange>");
+        sb.AppendLine("""        <UseDatabase>true</UseDatabase>""");
         sb.AppendLine("""        <EnablePrompting>false</EnablePrompting>""");
         sb.AppendLine("""      </PrintSetup>""");
 

@@ -27,6 +27,8 @@ public class FormMain : Form
     private readonly ComboBox cmbSpecialFilter = new();
     private readonly NumericUpDown numPrintFrom = new();
     private readonly NumericUpDown numPrintTo = new();
+    private readonly ComboBox cmbRecordSelection = new();
+    private readonly TextBox txtSelectedRecords = new();
     private readonly Dictionary<string, int> baseColumnWidths = new();
     private readonly Stack<CellEdit> undoStack = new();
     private object? valueBeforeEdit;
@@ -339,6 +341,59 @@ public class FormMain : Form
         printChoiceBar.Controls.Add(printRange);
         panel.Controls.Add(printChoiceBar);
         printChoiceBar.BringToFront();
+        printChoiceBar.Visible = false;
+
+        var recordSelectionBar = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            Height = 44,
+            FlowDirection = FlowDirection.LeftToRight,
+            Padding = new Padding(0, 4, 0, 4),
+            WrapContents = false
+        };
+        cmbRecordSelection.DropDownStyle = ComboBoxStyle.DropDownList;
+        cmbRecordSelection.Width = 165;
+        cmbRecordSelection.Height = 32;
+        cmbRecordSelection.Items.AddRange(
+        [
+            "Tất cả bản ghi",
+            "Chỉ bản ghi đầu",
+            "Tự chọn bản ghi"
+        ]);
+        cmbRecordSelection.SelectedIndex = 0;
+        txtSelectedRecords.Width = 190;
+        txtSelectedRecords.Height = 32;
+        txtSelectedRecords.PlaceholderText = "Ví dụ: 1,3,7-10";
+        txtSelectedRecords.Enabled = false;
+        var applyRecords = new Button { Text = "Áp dụng", Width = 92, Height = 32 };
+        AppTheme.StylePrimary(applyRecords);
+        cmbRecordSelection.SelectedIndexChanged += (_, _) =>
+        {
+            txtSelectedRecords.Enabled = cmbRecordSelection.SelectedIndex == 2;
+            if (cmbRecordSelection.SelectedIndex != 2)
+                ApplyRecordSelectionMode();
+        };
+        applyRecords.Click += (_, _) => ApplyRecordSelectionMode();
+        recordSelectionBar.Controls.Add(new Label
+        {
+            Text = "Bản ghi cần in:",
+            Width = 105,
+            Height = 32,
+            TextAlign = ContentAlignment.MiddleLeft,
+            ForeColor = AppTheme.Muted
+        });
+        recordSelectionBar.Controls.Add(cmbRecordSelection);
+        recordSelectionBar.Controls.Add(new Label
+        {
+            Text = "Dòng đã chọn:",
+            Width = 100,
+            Height = 32,
+            TextAlign = ContentAlignment.MiddleRight
+        });
+        recordSelectionBar.Controls.Add(txtSelectedRecords);
+        recordSelectionBar.Controls.Add(applyRecords);
+        panel.Controls.Add(recordSelectionBar);
+        recordSelectionBar.BringToFront();
 
         grid.Dock = DockStyle.Fill;
         grid.ReadOnly = false;
@@ -991,6 +1046,59 @@ public class FormMain : Form
             products[index].IncludeForPrint = index + 1 >= from && index + 1 <= to;
         numPrintFrom.Value = from;
         numPrintTo.Value = to;
+        ApplyFilter();
+    }
+
+    private void ApplyRecordSelectionMode()
+    {
+        if (cmbRecordSelection.SelectedIndex == 0)
+        {
+            SelectAllForPrint();
+            return;
+        }
+        if (cmbRecordSelection.SelectedIndex == 1)
+        {
+            SelectFirstForPrint();
+            return;
+        }
+
+        HashSet<int> selected = new();
+        try
+        {
+            foreach (string part in txtSelectedRecords.Text.Split(
+                ',',
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                string[] range = part.Split(
+                    '-',
+                    StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                if (range.Length == 1)
+                {
+                    selected.Add(int.Parse(range[0]));
+                    continue;
+                }
+                if (range.Length != 2)
+                    throw new FormatException();
+                int from = int.Parse(range[0]);
+                int to = int.Parse(range[1]);
+                if (from > to)
+                    (from, to) = (to, from);
+                for (int record = from; record <= to; record++)
+                    selected.Add(record);
+            }
+        }
+        catch
+        {
+            MessageBox.Show(
+                "Dòng đã chọn không hợp lệ.\n\nVí dụ đúng: 1,3,7-10",
+                "Kiểm tra lựa chọn",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return;
+        }
+
+        for (int index = 0; index < products.Count; index++)
+            products[index].IncludeForPrint = selected.Contains(index + 1);
         ApplyFilter();
     }
 

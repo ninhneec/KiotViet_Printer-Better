@@ -41,6 +41,8 @@ public class DirectPriceLabelHandler : ILabelHandler
         // Ghi toàn bộ sản phẩm đã chọn vào file trung gian một lần.
         // BarTender sẽ đọc tất cả record trong database và in trọn lô.
         excelService.WriteDirectPriceDataFile(label.DataFilePath, products);
-        barTenderService.Print(label.TemplatePath);
+        int recordCount = products.Sum(
+            product => Math.Max(1, (int)Math.Round(product.Quantity)));
+        barTenderService.Print(label.TemplatePath, null, recordCount);
     }
 }

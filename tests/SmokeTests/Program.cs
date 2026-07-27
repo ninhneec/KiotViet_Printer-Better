@@ -154,7 +154,8 @@ internal static class Program
                 "CreatePrintXmlNearApp",
                 templateCopy,
                 null!,
-                "");
+                "",
+                2);
             string templatePrinterContent = File.ReadAllText(templatePrinterXml);
             Assert(!templatePrinterContent.Contains("<Printer>"),
                 "XML không được ép máy in Windows khi dùng máy in lưu trong .btw.");
@@ -162,14 +163,17 @@ internal static class Program
                 "XML phải đóng tài liệu .btw sau job để nhả khóa file data.");
             Assert(templatePrinterContent.Contains("WaitForJobToComplete=\"true\""),
                 "XML phải chờ BarTender xử lý xong trước khi ghi sản phẩm tiếp theo.");
-            Assert(templatePrinterContent.Contains("<RecordRange>1-999999</RecordRange>"),
+            Assert(templatePrinterContent.Contains("<RecordRange>1-2</RecordRange>"),
                 "XML phải ghi đè First Record Only và in toàn bộ record.");
+            Assert(templatePrinterContent.Contains("<UseDatabase>true</UseDatabase>"),
+                "XML phải bật database để BarTender đọc file dữ liệu.");
             string overridePrinterXml = InvokeStatic<string>(
                 typeof(BarTenderService),
                 "CreatePrintXmlNearApp",
                 templateCopy,
                 null!,
-                "Máy in tem thử");
+                "Máy in tem thử",
+                2);
             Assert(File.ReadAllText(overridePrinterXml).Contains("<Printer>Máy in tem thử</Printer>"),
                 "XML thiếu máy in override do người dùng chọn.");
 
