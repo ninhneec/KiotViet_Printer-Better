@@ -31,6 +31,25 @@ internal static class Program
             Assert(products.Count > 0, "Excel phải có ít nhất một sản phẩm.");
             Assert(!string.IsNullOrWhiteSpace(products[0].ProductName), "Thiếu Tên hàng.");
 
+            var flowService = new DataFlowService();
+            DataFlowDefinition flow = DataFlowService.CreateStarterFlow();
+            List<DataFlowNode> sources = flow.Nodes
+                .Where(node => node.Type == DataFlowNodeType.ExcelSource)
+                .ToList();
+            sources[0].Settings["FilePath"] = sourceExcel;
+            sources[1].Settings["FilePath"] = sourceExcel;
+            DataFlowNode selectNode = flow.Nodes.Single(node => node.Type == DataFlowNodeType.SelectColumns);
+            selectNode.Settings["Mappings"] =
+                "Tên hàng=Tên hàng;Giá bán=Giá bán;Đơn vị tính=Đơn vị tính (File 2)";
+            FlowTable flowResult = flowService.Execute(flow);
+            Assert(flowResult.Rows.Count == products.Count, "Flow nối hai file sai số dòng.");
+            Assert(flowResult.Columns.Take(3).SequenceEqual(["Tên hàng", "Giá bán", "Đơn vị tính"]) &&
+                   flowResult.Columns.Contains("__Lỗi"),
+                "Flow chưa ánh xạ đúng ba cột đầu ra.");
+            string savedFlow = flowService.Save(flow);
+            Assert(File.Exists(savedFlow), "Flow chưa được lưu lâu dài.");
+            Assert(flowService.Load(savedFlow)?.Nodes.Count == flow.Nodes.Count, "Không mở lại được Flow đã lưu.");
+
             string dataFile = args.Length >= 3
                 ? Path.GetFullPath(args[2])
                 : Path.Combine(runtime, "fixed-data.xls");
@@ -91,6 +110,13 @@ internal static class Program
             configService.Save();
 
             ApplicationConfiguration.Initialize();
+            using (var designer = new FormFlowDesigner())
+            {
+                designer.Show();
+                Application.DoEvents();
+                Assert(designer.Controls.Count > 0, "Trình thiết kế Flow không khởi tạo được.");
+                designer.Close();
+            }
             using (var main = new TestableFormMain())
             {
                 main.Show();
@@ -200,6 +226,8 @@ internal static class Program
             }
 
             Console.WriteLine("PASS: Excel import");
+            Console.WriteLine("PASS: Two-file flow join, mapping and persistence");
+            Console.WriteLine("PASS: Flow designer UI opens");
             Console.WriteLine("PASS: Fixed data file has exactly 3 columns");
             Console.WriteLine($"COPIED FILE: {dataFile}");
             Console.WriteLine($"COPIED VALUES: Tên hàng={copiedName} | Giá bán={copiedPrice:N0} | Đơn vị tính={copiedUnit}");

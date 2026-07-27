@@ -20,6 +20,17 @@ Không cần KiotViet Public API.
 
 ## Quản lý mẫu tem
 
+## Thiết kế Flow dữ liệu
+
+Nút **Thiết kế Flow** mở trình ghép dữ liệu dạng node:
+
+- Kéo thả các khối nguồn Excel, nối dữ liệu, lọc, chọn cột, kiểm tra lỗi và mẫu tem.
+- Giữ `Ctrl` để chọn hai khối rồi bấm **Nối 2 khối**; khối được chọn trước là nguồn.
+- Nhấp đúp khối Excel để chọn file.
+- Node nối hỗ trợ giữ toàn bộ File 1 (`Left`) hoặc chỉ giữ mã có ở cả hai file (`Inner`).
+- **Chạy thử** hiển thị bảng kết quả; dòng thiếu trường bắt buộc được báo đỏ.
+- Flow được lưu lâu dài trong thư mục dữ liệu người dùng và mở lại dưới dạng cây logic.
+
 Mở **Mẫu tem & cài đặt** để:
 
 - thêm hoặc bỏ một mẫu khỏi app;

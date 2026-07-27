@@ -76,7 +76,7 @@ public class FormMain : Form
         });
 
         var config = new Button { Text = "Quản lý mẫu tem", Width = 166, Height = 40, Top = 31 };
-        config.Left = header.Width - 322;
+        config.Left = header.Width - 498;
         config.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         AppTheme.StyleHeaderButton(config);
         config.Click += (_, _) =>
@@ -86,6 +86,17 @@ public class FormMain : Form
             ReloadTemplates();
         };
         header.Controls.Add(config);
+
+        var flowDesigner = new Button { Text = "Thiết kế Flow", Width = 150, Height = 40, Top = 31 };
+        flowDesigner.Left = header.Width - 322;
+        flowDesigner.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        AppTheme.StyleHeaderButton(flowDesigner);
+        flowDesigner.Click += (_, _) =>
+        {
+            using var form = new FormFlowDesigner();
+            form.ShowDialog(this);
+        };
+        header.Controls.Add(flowDesigner);
 
         var history = new Button { Text = "Lịch sử", Width = 110, Height = 40, Top = 25 };
         history.Top = 31;
