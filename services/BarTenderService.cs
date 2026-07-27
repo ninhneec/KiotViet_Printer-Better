@@ -73,24 +73,11 @@ public class BarTenderService
                     "BarTender đang mở hoặc đang đứng ở cửa sổ Print.\n\n" +
                     "Hãy đóng toàn bộ BarTender rồi bấm In lại. App không chạy " +
                     "hai phiên cùng lúc để tránh treo máy và in lặp.");
-            string arguments;
-            if (databaseBatch)
-            {
-                // Chế độ tương thích BarTender 10.1. Chỉ chạy một instance để
-                // tránh tranh driver/License Server trên máy cấu hình thấp.
-                // /FP ép bật database; /X đóng sau khi xử lý xong.
-                arguments = $"/AF=\"{btwFile}\" ";
-                if (!string.IsNullOrWhiteSpace(printerName))
-                    arguments += $"/PRN=\"{printerName}\" ";
-                arguments += $"/RecordRange=1-{recordCount!.Value} /FP /X";
-            }
-            else
-            {
-                // BarTender yêu cầu /XMLScript là tham số CUỐI CÙNG.
-                arguments = (hasRunningBarTender ? "" : "/X ") +
-                            $"/XMLScript=\"{xmlPath}\"";
-            }
-            WritePrintLog($"METHOD={(databaseBatch ? "CLI10" : "BTXML")}");
+            // BarTender 10.1 không nhận /RecordRange ở command line (Error #3113).
+            // Dùng RecordRange trong BTXML; /XMLScript bắt buộc là tham số cuối.
+            string arguments = (hasRunningBarTender ? "" : "/X ") +
+                               $"/XMLScript=\"{xmlPath}\"";
+            WritePrintLog("METHOD=BTXML10");
             WritePrintLog($"COMMAND exe={bartenderExe} args={arguments}");
             ProcessStartInfo psi = new()
             {
