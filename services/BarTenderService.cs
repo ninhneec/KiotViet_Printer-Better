@@ -1,8 +1,6 @@
 using System.Diagnostics;
 using System.Drawing.Printing;
 using System.Runtime.InteropServices;
-using System.Reflection;
-using System.Globalization;
 using System.Text;
 using System.Windows.Forms;
 
@@ -236,93 +234,72 @@ public class BarTenderService
 
     private static string RunXmlViaActiveX(string xmlPath)
     {
-        string response = string.Empty;
-        Exception? failure = null;
-        using ManualResetEventSlim completed = new(false);
+        string runnerPath = Path.Combine(
+            ConfigService.Instance.DataDirectory,
+            "bartender_automation.vbs");
+        File.WriteAllText(
+            runnerPath,
+            """
+            Option Explicit
+            Dim btApp, btMessages, response, xmlPath
+            xmlPath = WScript.Arguments(0)
+            On Error Resume Next
+            Set btApp = CreateObject("BarTender.Application")
+            If Err.Number <> 0 Then
+              WScript.StdErr.WriteLine "CREATE_COM: " & Err.Description
+              WScript.Quit 2
+            End If
+            Err.Clear
+            btApp.Visible = False
+            response = btApp.XMLScript(xmlPath, 1, btMessages)
+            If Err.Number <> 0 Then
+              WScript.StdErr.WriteLine "XMLSCRIPT: " & Err.Description
+              btApp.Quit 1
+              WScript.Quit 3
+            End If
+            btApp.Quit 1
+            WScript.Echo response
+            """,
+            new UTF8Encoding(false));
 
-        Thread automationThread = new(() =>
+        ProcessStartInfo startInfo = new()
         {
-            object? application = null;
+            FileName = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.System),
+                "cscript.exe"),
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        startInfo.ArgumentList.Add("//NoLogo");
+        startInfo.ArgumentList.Add(runnerPath);
+        startInfo.ArgumentList.Add(xmlPath);
+
+        using Process? process = Process.Start(startInfo);
+        if (process == null)
+            throw new Exception("Không thể mở Windows Script Host.");
+
+        Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
+        Task<string> errorTask = process.StandardError.ReadToEndAsync();
+        if (!process.WaitForExit(60000))
+        {
             try
             {
-                Type? applicationType = Type.GetTypeFromProgID("BarTender.Application");
-                if (applicationType == null)
-                    throw new Exception(
-                        "Không tìm thấy BarTender Automation COM trên máy.");
-
-                application = Activator.CreateInstance(applicationType)
-                    ?? throw new Exception("Không thể khởi tạo BarTender Automation.");
-                applicationType.InvokeMember(
-                    "Visible",
-                    BindingFlags.SetProperty,
-                    null,
-                    application,
-                    [false],
-                    CultureInfo.InvariantCulture);
-
-                object?[] xmlArguments = [xmlPath, 1, null];
-                ParameterModifier outMessages = new(xmlArguments.Length);
-                outMessages[2] = true;
-                object? xmlResult = applicationType.InvokeMember(
-                    "XMLScript",
-                    BindingFlags.InvokeMethod,
-                    null,
-                    application,
-                    xmlArguments,
-                    [outMessages],
-                    CultureInfo.InvariantCulture,
-                    null);
-                response = Convert.ToString(xmlResult) ?? string.Empty;
-                applicationType.InvokeMember(
-                    "Quit",
-                    BindingFlags.InvokeMethod,
-                    null,
-                    application,
-                    [1],
-                    CultureInfo.InvariantCulture);
+                process.Kill(entireProcessTree: true);
             }
-            catch (Exception ex)
+            catch
             {
-                failure = ex;
-                try
-                {
-                    if (application != null)
-                    {
-                        application.GetType().InvokeMember(
-                            "Quit",
-                            BindingFlags.InvokeMethod,
-                            null,
-                            application,
-                            [1],
-                            CultureInfo.InvariantCulture);
-                    }
-                }
-                catch
-                {
-                }
             }
-            finally
-            {
-                if (application != null && Marshal.IsComObject(application))
-                    Marshal.FinalReleaseComObject(application);
-                completed.Set();
-            }
-        })
-        {
-            IsBackground = true,
-            Name = "BarTender Automation"
-        };
-        automationThread.SetApartmentState(ApartmentState.STA);
-        automationThread.Start();
+            throw new Exception(
+                "BarTender Automation không phản hồi sau 60 giây.");
+        }
 
-        if (!completed.Wait(TimeSpan.FromSeconds(60)))
+        string response = outputTask.GetAwaiter().GetResult();
+        string error = errorTask.GetAwaiter().GetResult();
+        if (process.ExitCode != 0)
             throw new Exception(
-                "BarTender Automation không phản hồi sau 60 giây. " +
-                "Tiến trình ẩn sẽ được dọn ở lần in tiếp theo.");
-        if (failure != null)
-            throw new Exception(
-                "Không gọi được BarTender Automation.\n\n" + failure.Message,
-                failure);
+                $"BarTender Automation trả mã {process.ExitCode}.\n\n{error}");
 
         return response;
     }

@@ -7,9 +7,9 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>0.1.0-beta.34</Version>
-    <AssemblyVersion>0.1.0.34</AssemblyVersion>
-    <FileVersion>0.1.0.34</FileVersion>
+    <Version>0.1.0-beta.35</Version>
+    <AssemblyVersion>0.1.0.35</AssemblyVersion>
+    <FileVersion>0.1.0.35</FileVersion>
     <AcceptNPOIOSMFLicense>true</AcceptNPOIOSMFLicense>
   </PropertyGroup>
 
