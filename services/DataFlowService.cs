@@ -72,6 +72,65 @@ public class DataFlowService
         return results[output.Id];
     }
 
+    public FlowTable ReadSource(string path) => ReadExcel(path);
+
+    public DataFlowDefinition CreateSimpleFlow(
+        string name,
+        string file1,
+        string? file2,
+        string? leftKey,
+        string? rightKey,
+        string nameColumn,
+        string priceColumn,
+        string unitColumn)
+    {
+        DataFlowNode source1 = NewNode(DataFlowNodeType.ExcelSource, "File sản phẩm", 60, 180);
+        source1.Settings["FilePath"] = file1;
+        DataFlowNode select = NewNode(DataFlowNodeType.SelectColumns, "Lấy 3 cột cần in", 650, 180);
+        select.Settings["Mappings"] =
+            $"Tên hàng={nameColumn};Giá bán={priceColumn};Đơn vị tính={unitColumn}";
+        DataFlowNode validate = NewNode(DataFlowNodeType.Validate, "Kiểm tra dữ liệu", 920, 180);
+        validate.Settings["Required"] = "Tên hàng;Giá bán;Đơn vị tính";
+        DataFlowNode output = NewNode(DataFlowNodeType.LabelOutput, "Sẵn sàng cho BarTender", 1190, 180);
+        DataFlowDefinition flow = new()
+        {
+            Name = string.IsNullOrWhiteSpace(name) ? "Flow tem mới" : name.Trim(),
+            Nodes = [source1, select, validate, output]
+        };
+
+        if (!string.IsNullOrWhiteSpace(file2))
+        {
+            DataFlowNode source2 = NewNode(DataFlowNodeType.ExcelSource, "File bổ sung", 60, 370);
+            source2.Settings["FilePath"] = file2;
+            DataFlowNode join = NewNode(DataFlowNodeType.Join, "Tự nối hai file", 370, 260);
+            join.Settings["LeftKey"] = leftKey ?? "";
+            join.Settings["RightKey"] = rightKey ?? "";
+            join.Settings["JoinType"] = "Left";
+            flow.Nodes.Insert(1, source2);
+            flow.Nodes.Insert(2, join);
+            flow.Connections.AddRange(
+            [
+                new() { FromNodeId = source1.Id, ToNodeId = join.Id, ToInput = 0 },
+                new() { FromNodeId = source2.Id, ToNodeId = join.Id, ToInput = 1 },
+                new() { FromNodeId = join.Id, ToNodeId = select.Id }
+            ]);
+        }
+        else
+        {
+            flow.Connections.Add(new()
+            {
+                FromNodeId = source1.Id,
+                ToNodeId = select.Id
+            });
+        }
+        flow.Connections.AddRange(
+        [
+            new() { FromNodeId = select.Id, ToNodeId = validate.Id },
+            new() { FromNodeId = validate.Id, ToNodeId = output.Id }
+        ]);
+        return flow;
+    }
+
     public static DataFlowDefinition CreateStarterFlow()
     {
         DataFlowNode sourceA = NewNode(DataFlowNodeType.ExcelSource, "File dữ liệu chính", 50, 100);

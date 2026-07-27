@@ -87,13 +87,13 @@ public class FormMain : Form
         };
         header.Controls.Add(config);
 
-        var flowDesigner = new Button { Text = "Thiết kế Flow", Width = 150, Height = 40, Top = 31 };
+        var flowDesigner = new Button { Text = "Ghép dữ liệu", Width = 150, Height = 40, Top = 31 };
         flowDesigner.Left = header.Width - 322;
         flowDesigner.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         AppTheme.StyleHeaderButton(flowDesigner);
         flowDesigner.Click += (_, _) =>
         {
-            using var form = new FormFlowDesigner();
+            using var form = new FormFlowWizard();
             form.ShowDialog(this);
         };
         header.Controls.Add(flowDesigner);

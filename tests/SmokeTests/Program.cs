@@ -49,6 +49,28 @@ internal static class Program
             string savedFlow = flowService.Save(flow);
             Assert(File.Exists(savedFlow), "Flow chưa được lưu lâu dài.");
             Assert(flowService.Load(savedFlow)?.Nodes.Count == flow.Nodes.Count, "Không mở lại được Flow đã lưu.");
+            DataFlowDefinition oneFileFlow = flowService.CreateSimpleFlow(
+                "Flow một file",
+                sourceExcel,
+                null,
+                null,
+                null,
+                "Tên hàng",
+                "Giá bán",
+                "Đơn vị tính");
+            FlowTable oneFileResult = flowService.Execute(oneFileFlow);
+            Assert(oneFileResult.Rows.Count == products.Count, "Flow dễ dùng một file sai số dòng.");
+            DataFlowDefinition twoFileFlow = flowService.CreateSimpleFlow(
+                "Flow hai file",
+                sourceExcel,
+                sourceExcel,
+                "Mã hàng",
+                "Mã hàng",
+                "Tên hàng",
+                "Giá bán",
+                "Đơn vị tính (File 2)");
+            FlowTable twoFileResult = flowService.Execute(twoFileFlow);
+            Assert(twoFileResult.Rows.Count == products.Count, "Flow dễ dùng hai file sai số dòng.");
 
             string csvSource = Path.Combine(runtime, "flow-source.csv");
             File.WriteAllText(csvSource, "Mã hàng,Tên hàng\nSP01,\"Sản phẩm, có dấu phẩy\"");
@@ -133,6 +155,18 @@ internal static class Program
                 Application.DoEvents();
                 Assert(designer.Controls.Count > 0, "Trình thiết kế Flow không khởi tạo được.");
                 designer.Close();
+            }
+            using (var wizard = new FormFlowWizard())
+            {
+                wizard.Show();
+                Application.DoEvents();
+                Assert(wizard.Controls.Count > 0, "Trợ lý Flow không khởi tạo được.");
+                Assert(FindControl<Button>(wizard, button => button.Text == "Chế độ nâng cao") != null,
+                    "Trợ lý Flow thiếu đường vào chế độ nâng cao.");
+                using Bitmap wizardPreview = new(wizard.ClientSize.Width, wizard.ClientSize.Height);
+                wizard.DrawToBitmap(wizardPreview, wizard.ClientRectangle);
+                wizardPreview.Save(Path.Combine(runtime, "flow-wizard-preview.png"));
+                wizard.Close();
             }
             using (var main = new TestableFormMain())
             {
@@ -240,7 +274,7 @@ internal static class Program
                 Assert(File.Exists(ConfigService.Instance.GetStoredTemplatePath("SMOKE")),
                     "Bản dự phòng .btw không được tạo.");
                 Assert(((LabelDefinition?)list.SelectedItem)?.Code == "SMOKE", "Lưu xong không giữ mẫu đang chọn.");
-                Assert(FindControl<Button>(config, button => button.Text == "Mở thiết kế Flow") != null,
+                Assert(FindControl<Button>(config, button => button.Text == "Mở ghép dữ liệu") != null,
                     "Settings chưa hiển thị nút mở Flow.");
             }
 
@@ -262,6 +296,8 @@ internal static class Program
             Console.WriteLine("PASS: Excel import");
             Console.WriteLine("PASS: Two-file flow join, mapping and persistence");
             Console.WriteLine("PASS: Flow designer UI opens");
+            Console.WriteLine("PASS: Simple Flow wizard opens");
+            Console.WriteLine("PASS: Simple one-file and two-file flows");
             Console.WriteLine("PASS: Fixed data file has exactly 3 columns");
             Console.WriteLine($"COPIED FILE: {dataFile}");
             Console.WriteLine($"COPIED VALUES: Tên hàng={copiedName} | Giá bán={copiedPrice:N0} | Đơn vị tính={copiedUnit}");

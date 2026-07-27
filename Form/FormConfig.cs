@@ -212,14 +212,14 @@ public class FormConfig : Form
         });
         var openFlow = new Button
         {
-            Text = "Mở thiết kế Flow",
+            Text = "Mở ghép dữ liệu",
             Width = 150, Height = 36, Top = 18, Left = 520,
             Anchor = AnchorStyles.Top | AnchorStyles.Right
         };
         AppTheme.StylePrimary(openFlow);
         openFlow.Click += (_, _) =>
         {
-            using var form = new FormFlowDesigner();
+            using var form = new FormFlowWizard();
             form.ShowDialog(this);
         };
         block.Controls.Add(openFlow);

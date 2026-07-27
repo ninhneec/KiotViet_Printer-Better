@@ -22,7 +22,14 @@ Không cần KiotViet Public API.
 
 ## Thiết kế Flow dữ liệu
 
-Nút **Thiết kế Flow** mở trình ghép dữ liệu dạng node:
+Nút **Ghép dữ liệu** mở trợ lý bốn bước dành cho người dùng phổ thông:
+
+1. Chọn file sản phẩm và file bổ sung nếu cần.
+2. App tự gợi ý cột nối như Mã hàng, SKU hoặc Barcode và báo số dòng nối được.
+3. Chọn ba nội dung cần in: Tên hàng, Giá bán, Đơn vị tính.
+4. Xem kết quả rồi lưu cách ghép.
+
+Không cần kéo dây hoặc nhập tên cột. Màn hình node được giữ trong **Chế độ nâng cao**:
 
 - Kéo thả các khối nguồn Excel, nối dữ liệu, lọc, chọn cột, kiểm tra lỗi và mẫu tem.
 - Giữ `Ctrl` để chọn hai khối rồi bấm **Nối 2 khối**; khối được chọn trước là nguồn.
