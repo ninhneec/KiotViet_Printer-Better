@@ -240,7 +240,24 @@ internal static class Program
                 Assert(File.Exists(ConfigService.Instance.GetStoredTemplatePath("SMOKE")),
                     "Bản dự phòng .btw không được tạo.");
                 Assert(((LabelDefinition?)list.SelectedItem)?.Code == "SMOKE", "Lưu xong không giữ mẫu đang chọn.");
+                Assert(FindControl<Button>(config, button => button.Text == "Mở thiết kế Flow") != null,
+                    "Settings chưa hiển thị nút mở Flow.");
             }
+
+            string missingTemplate = Path.Combine(runtime, "duong-dan-nguoi-dung", "mau-khong-ton-tai.btw");
+            string missingData = Path.Combine(runtime, "duong-dan-nguoi-dung", "data-khong-ton-tai.xls");
+            string missingBarTender = Path.Combine(runtime, "BarTender", "bartend.exe");
+            configService.Config.BarTenderExe = missingBarTender;
+            configService.Config.Labels[0].TemplatePath = missingTemplate;
+            configService.Config.Labels[0].DataFilePath = missingData;
+            configService.Save();
+            configService.Load();
+            Assert(configService.Config.BarTenderExe == missingBarTender,
+                "Load config tự đổi đường dẫn BarTender người dùng đã chọn.");
+            Assert(configService.Config.Labels[0].TemplatePath == missingTemplate,
+                "Load config tự đổi đường dẫn .btw người dùng đã chọn.");
+            Assert(configService.Config.Labels[0].DataFilePath == missingData,
+                "Load config tự đổi đường dẫn data người dùng đã chọn.");
 
             Console.WriteLine("PASS: Excel import");
             Console.WriteLine("PASS: Two-file flow join, mapping and persistence");
@@ -259,6 +276,8 @@ internal static class Program
             Console.WriteLine("PASS: Four-direction arrow cell navigation");
             Console.WriteLine("PASS: Template name editing remains stable");
             Console.WriteLine("PASS: Settings preserve selected data/template");
+            Console.WriteLine("PASS: Missing user paths never reset to managed defaults");
+            Console.WriteLine("PASS: Flow designer is visible from Settings");
             Console.WriteLine($"Runtime: {runtime}");
             return 0;
         }
@@ -281,6 +300,19 @@ internal static class Program
         if (field == null)
             throw new MissingFieldException(instance.GetType().Name, name);
         return (T)field.GetValue(instance)!;
+    }
+
+    private static T? FindControl<T>(Control root, Func<T, bool> predicate) where T : Control
+    {
+        foreach (Control child in root.Controls)
+        {
+            if (child is T typed && predicate(typed))
+                return typed;
+            T? nested = FindControl(child, predicate);
+            if (nested != null)
+                return nested;
+        }
+        return null;
     }
 
     private static void Invoke(object instance, string name, params object[] args)

@@ -144,7 +144,7 @@ public class FormConfig : Form
             Dock = DockStyle.Top,
             AutoSize = true,
             ColumnCount = 3,
-            RowCount = 9
+            RowCount = 10
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -177,9 +177,10 @@ public class FormConfig : Form
 
         AddTitle(layout, "BarTender", "Chọn chương trình BarTender đã cài trên máy.", 7);
         AddFileField(layout, "BarTender.exe", txtBarTender, "Tìm ứng dụng", "*.exe", 8);
+        AddFlowSettings(layout, 9);
 
         lblStatus.Dock = DockStyle.Bottom;
-        lblStatus.Height = 52;
+        lblStatus.Height = 68;
         lblStatus.Padding = new Padding(14);
         lblStatus.Font = AppTheme.Body(9.5F, FontStyle.Bold);
         scroll.Controls.Add(lblStatus);
@@ -193,6 +194,37 @@ public class FormConfig : Form
         };
 
         return host;
+    }
+
+    private void AddFlowSettings(TableLayoutPanel layout, int row)
+    {
+        var block = new Panel { Dock = DockStyle.Fill, Height = 82, Margin = new Padding(0, 12, 0, 8) };
+        block.Controls.Add(new Label
+        {
+            Text = "Flow dữ liệu", Left = 0, Top = 2, Width = 260, Height = 28,
+            Font = AppTheme.Display(15), ForeColor = AppTheme.Ink
+        });
+        block.Controls.Add(new Label
+        {
+            Text = "Ghép nhiều file, lọc và đổi cột trước khi đưa sang mẫu tem.",
+            Left = 1, Top = 34, Width = 500, Height = 24,
+            Font = AppTheme.Body(9), ForeColor = AppTheme.Muted
+        });
+        var openFlow = new Button
+        {
+            Text = "Mở thiết kế Flow",
+            Width = 150, Height = 36, Top = 18, Left = 520,
+            Anchor = AnchorStyles.Top | AnchorStyles.Right
+        };
+        AppTheme.StylePrimary(openFlow);
+        openFlow.Click += (_, _) =>
+        {
+            using var form = new FormFlowDesigner();
+            form.ShowDialog(this);
+        };
+        block.Controls.Add(openFlow);
+        layout.Controls.Add(block, 0, row);
+        layout.SetColumnSpan(block, 3);
     }
 
     private static void AddTitle(TableLayoutPanel layout, string title, string subtitle, int row)
@@ -228,7 +260,13 @@ public class FormConfig : Form
         input.Margin = new Padding(0, 3, 8, 10);
         var browse = new Button { Text = buttonText, Dock = DockStyle.Top, Height = 32, Margin = new Padding(0, 3, 0, 10) };
         AppTheme.StyleSecondary(browse);
-        browse.Click += (_, _) => Browse(input, pattern);
+        browse.Click += (_, _) =>
+        {
+            if (label.Equals("BarTender.exe", StringComparison.OrdinalIgnoreCase))
+                BrowseBarTender();
+            else
+                Browse(input, pattern);
+        };
         var menu = new ContextMenuStrip();
         menu.Items.Add("Mở file", null, (_, _) => OpenPath(input.Text));
         menu.Items.Add("Mở thư mục chứa file", null, (_, _) => OpenFolder(input.Text));
@@ -353,8 +391,9 @@ public class FormConfig : Form
             issues.Add("chưa chọn đúng bartend.exe");
         }
         lblStatus.Text = issues.Count == 0
-            ? "✓ Mẫu đã sẵn sàng để in."
-            : "Cần bổ sung: " + string.Join(" • ", issues);
+            ? $"✓ Mẫu đã sẵn sàng để in.\nCài đặt: {ConfigService.Instance.ConfigFilePath}"
+            : "Cần bổ sung: " + string.Join(" • ", issues) +
+              $"\nCài đặt: {ConfigService.Instance.ConfigFilePath}";
         lblStatus.BackColor = issues.Count == 0 ? Color.FromArgb(224, 243, 235) : Color.FromArgb(255, 243, 220);
         lblStatus.ForeColor = issues.Count == 0 ? AppTheme.AccentDark : Color.FromArgb(136, 91, 22);
     }
@@ -493,6 +532,36 @@ public class FormConfig : Form
             return;
         txtDataFile.Text = dialog.FileName;
         UpdateSelectedFromEditor();
+    }
+
+    private void BrowseBarTender()
+    {
+        IReadOnlyList<string> detected = ConfigService.Instance.FindBarTenderExecutables();
+        using OpenFileDialog dialog = new()
+        {
+            Filter = "BarTender (bartend.exe)|bartend.exe",
+            Title = "Chọn đúng file bartend.exe của BarTender",
+            CheckFileExists = true,
+            FileName = "bartend.exe"
+        };
+        if (File.Exists(txtBarTender.Text))
+            dialog.InitialDirectory = Path.GetDirectoryName(txtBarTender.Text);
+        else if (detected.Count > 0)
+            dialog.InitialDirectory = Path.GetDirectoryName(detected[0]);
+
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+            return;
+        if (!Path.GetFileName(dialog.FileName).Equals("bartend.exe", StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show(
+                "File này không phải bartend.exe.\n\nHãy mở thư mục cài BarTender và chọn đúng bartend.exe.",
+                "Chọn sai ứng dụng",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return;
+        }
+        txtBarTender.Text = dialog.FileName;
+        UpdateStatus();
     }
 
     private static void OpenPath(string path)

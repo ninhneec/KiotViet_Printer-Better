@@ -9,6 +9,7 @@ public class ConfigService
     public static ConfigService Instance => _instance ??= new ConfigService();
 
     private readonly string _configPath;
+    public string ConfigFilePath => _configPath;
     public string DataDirectory { get; }
     public string TemplatesDirectory => Path.Combine(DataDirectory, "Templates");
     public string DataFilesDirectory => Path.Combine(DataDirectory, "Data");
@@ -72,18 +73,11 @@ public class ConfigService
             foreach (LabelDefinition label in Config.Labels)
             {
                 label.HandlerType = "DIRECT_PRICE";
-                if (!File.Exists(label.TemplatePath))
-                {
-                    string backupTemplate = GetStoredTemplatePath(label.Code);
-                    if (File.Exists(backupTemplate))
-                        label.TemplatePath = backupTemplate;
-                }
                 if (string.IsNullOrWhiteSpace(label.DataFilePath))
                     label.DataFilePath = GetManagedDataFilePath(label.Code);
                 label.RequiresEmployeeCode = false;
                 label.UseBarcodeParser = false;
                 label.AppendEmployeeCode = false;
-                new ExcelService().EnsureDirectPriceDataFile(label.DataFilePath);
             }
 
             Save();
@@ -127,6 +121,40 @@ public class ConfigService
         string path = Config.BarTenderExe;
         return File.Exists(path) &&
                Path.GetFileName(path).Equals("bartend.exe", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public IReadOnlyList<string> FindBarTenderExecutables()
+    {
+        string[] roots =
+        [
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)
+        ];
+        List<string> results = new();
+        foreach (string root in roots.Where(Directory.Exists).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            string[] likelyDirectories =
+            [
+                Path.Combine(root, "Seagull"),
+                Path.Combine(root, "Seagull Scientific"),
+                Path.Combine(root, "BarTender")
+            ];
+            foreach (string directory in likelyDirectories.Where(Directory.Exists))
+            {
+                try
+                {
+                    results.AddRange(Directory.EnumerateFiles(
+                        directory, "bartend.exe", SearchOption.AllDirectories));
+                }
+                catch (UnauthorizedAccessException)
+                {
+                }
+                catch (IOException)
+                {
+                }
+            }
+        }
+        return results.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     public string StoreTemplate(string sourcePath, string labelCode)
