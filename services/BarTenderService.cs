@@ -251,7 +251,9 @@ public class BarTenderService
         sb.AppendLine("""<?xml version="1.0" encoding="utf-8"?>""");
         sb.AppendLine("""<XMLScript Version="2.0">""");
         sb.AppendLine("""  <Command>""");
-        sb.AppendLine("""    <Print>""");
+        // Chờ BarTender đọc và gửi xong đúng dòng hiện tại trước khi app
+        // được phép ghi dữ liệu của sản phẩm tiếp theo.
+        sb.AppendLine("""    <Print WaitForJobToComplete="true" Timeout="120000" ReturnPrintData="true" ReturnSummary="true" ReturnLabelData="false">""");
         // BarTender giữ kết nối Excel chừng nào tài liệu .btw còn mở.
         // Đóng tài liệu sau mỗi job để nhả file data cho sản phẩm kế tiếp.
         sb.AppendLine($"      <Format CloseAtEndOfJob=\"true\">{EscapeXml(btwFile)}</Format>");

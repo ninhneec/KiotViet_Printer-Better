@@ -160,6 +160,8 @@ internal static class Program
                 "XML không được ép máy in Windows khi dùng máy in lưu trong .btw.");
             Assert(templatePrinterContent.Contains("CloseAtEndOfJob=\"true\""),
                 "XML phải đóng tài liệu .btw sau job để nhả khóa file data.");
+            Assert(templatePrinterContent.Contains("WaitForJobToComplete=\"true\""),
+                "XML phải chờ BarTender xử lý xong trước khi ghi sản phẩm tiếp theo.");
             string overridePrinterXml = InvokeStatic<string>(
                 typeof(BarTenderService),
                 "CreatePrintXmlNearApp",
