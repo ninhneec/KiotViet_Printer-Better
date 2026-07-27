@@ -49,6 +49,15 @@ public class FormConfig : Form
             Left = 34, Top = 57, Width = 720, Height = 24,
             Font = AppTheme.Body(10), ForeColor = Color.FromArgb(196, 211, 206)
         });
+        header.Controls.Add(new Label
+        {
+            Text = $"Phiên bản {Application.ProductVersion}",
+            Left = header.Width - 210, Top = 25, Width = 175, Height = 24,
+            Anchor = AnchorStyles.Top | AnchorStyles.Right,
+            TextAlign = ContentAlignment.MiddleRight,
+            Font = AppTheme.Body(9, FontStyle.Bold),
+            ForeColor = Color.FromArgb(196, 211, 206)
+        });
         var footer = new Panel { Dock = DockStyle.Bottom, Height = 76, BackColor = AppTheme.Surface };
         btnSave.Text = "Lưu thay đổi";
         btnSave.SetBounds(Width - 210, 17, 160, 42);
@@ -180,7 +189,7 @@ public class FormConfig : Form
         AddFlowSettings(layout, 9);
 
         lblStatus.Dock = DockStyle.Bottom;
-        lblStatus.Height = 68;
+        lblStatus.Height = 88;
         lblStatus.Padding = new Padding(14);
         lblStatus.Font = AppTheme.Body(9.5F, FontStyle.Bold);
         scroll.Controls.Add(lblStatus);
@@ -265,7 +274,10 @@ public class FormConfig : Form
             if (label.Equals("BarTender.exe", StringComparison.OrdinalIgnoreCase))
                 BrowseBarTender();
             else
+            {
                 Browse(input, pattern);
+                SavePathsImmediately();
+            }
         };
         var menu = new ContextMenuStrip();
         menu.Items.Add("Mở file", null, (_, _) => OpenPath(input.Text));
@@ -532,6 +544,7 @@ public class FormConfig : Form
             return;
         txtDataFile.Text = dialog.FileName;
         UpdateSelectedFromEditor();
+        SavePathsImmediately();
     }
 
     private void BrowseBarTender()
@@ -552,7 +565,24 @@ public class FormConfig : Form
         if (dialog.ShowDialog(this) != DialogResult.OK)
             return;
         txtBarTender.Text = dialog.FileName;
+        SavePathsImmediately();
+    }
+
+    private void SavePathsImmediately()
+    {
+        UpdateSelectedFromEditor();
+        ConfigService configService = ConfigService.Instance;
+        configService.Config.BarTenderExe = txtBarTender.Text.Trim();
+        configService.Config.Labels = labels.Select(Clone).ToList();
+        configService.Save();
         UpdateStatus();
+        lblStatus.Text =
+            "✓ Đã ghi ngay vào config.json" +
+            $"\nBarTender: {configService.Config.BarTenderExe}" +
+            $"\nMẫu tem: {txtTemplate.Text.Trim()}" +
+            $"\nData: {txtDataFile.Text.Trim()}";
+        lblStatus.BackColor = Color.FromArgb(224, 243, 235);
+        lblStatus.ForeColor = AppTheme.AccentDark;
     }
 
     private static void OpenPath(string path)

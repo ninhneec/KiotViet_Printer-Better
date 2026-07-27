@@ -257,6 +257,7 @@ internal static class Program
                 TextBox name = ReadField<TextBox>(config, "txtName");
                 TextBox template = ReadField<TextBox>(config, "txtTemplate");
                 TextBox data = ReadField<TextBox>(config, "txtDataFile");
+                TextBox bartender = ReadField<TextBox>(config, "txtBarTender");
                 object? selectedBefore = list.SelectedItem;
                 string templateBefore = template.Text;
                 string dataBefore = data.Text;
@@ -276,6 +277,16 @@ internal static class Program
                 Assert(((LabelDefinition?)list.SelectedItem)?.Code == "SMOKE", "Lưu xong không giữ mẫu đang chọn.");
                 Assert(FindControl<Button>(config, button => button.Text == "Mở ghép dữ liệu") != null,
                     "Settings chưa hiển thị nút mở Flow.");
+
+                string freelySelectedExe = Path.Combine(runtime, "ung-dung-tu-chon.exe");
+                File.Copy(sourceTemplate, freelySelectedExe);
+                bartender.Text = freelySelectedExe;
+                Invoke(config, "SavePathsImmediately");
+                Assert(ConfigService.Instance.Config.BarTenderExe == freelySelectedExe,
+                    "Chọn đường dẫn tự do chưa ghi ngay vào config.");
+                ConfigService.Instance.Load();
+                Assert(ConfigService.Instance.Config.BarTenderExe == freelySelectedExe,
+                    "Đường dẫn tự do bị đổi sau khi load lại config.");
             }
 
             string missingTemplate = Path.Combine(runtime, "duong-dan-nguoi-dung", "mau-khong-ton-tai.btw");
@@ -313,6 +324,7 @@ internal static class Program
             Console.WriteLine("PASS: Template name editing remains stable");
             Console.WriteLine("PASS: Settings preserve selected data/template");
             Console.WriteLine("PASS: Missing user paths never reset to managed defaults");
+            Console.WriteLine("PASS: Freely selected app path is persisted immediately");
             Console.WriteLine("PASS: Flow designer is visible from Settings");
             Console.WriteLine($"Runtime: {runtime}");
             return 0;
