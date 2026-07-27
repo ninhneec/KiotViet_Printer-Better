@@ -16,25 +16,28 @@ public class FormMain : Form
     private readonly Label lblFileState = new();
     private readonly Label lblTemplateState = new();
     private readonly Label lblSummary = new();
+    private readonly Label lblEmptyData = new();
     private readonly Label lblEmployee = new();
     private readonly Button btnPreview = new();
     private readonly Button btnPrint = new();
     private readonly Label lblZoom = new();
     private readonly TrackBar zoomSlider = new();
+    private readonly ToolTip fileToolTip = new();
     private readonly Dictionary<string, int> baseColumnWidths = new();
     private readonly Stack<CellEdit> undoStack = new();
     private object? valueBeforeEdit;
     private bool applyingUndo;
     private LabelDefinition? selectedLabel;
     private List<ProductRow> products = new();
+    private string selectedExcelPath = "";
     private int zoomPercent = 100;
     private sealed record CellEdit(int RowIndex, int ColumnIndex, object? PreviousValue);
 
     public FormMain()
     {
         Text = "In tem KiotViet";
-        MinimumSize = new Size(1120, 720);
-        Size = new Size(1320, 820);
+        MinimumSize = new Size(1100, 700);
+        Size = new Size(1360, 860);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = AppTheme.Canvas;
         Font = AppTheme.Body();
@@ -56,35 +59,37 @@ public class FormMain : Form
 
     private Control BuildHeader()
     {
-        var header = new Panel { Dock = DockStyle.Top, Height = 92, BackColor = AppTheme.Ink };
+        var header = new Panel { Dock = DockStyle.Top, Height = 104, BackColor = AppTheme.Ink };
         header.Controls.Add(new Label
         {
-            Text = "IN TEM",
-            Left = 28, Top = 14, Width = 240, Height = 40,
-            Font = AppTheme.Display(24), ForeColor = Color.White
+            Text = "In tem KiotViet",
+            Left = 30, Top = 17, Width = 360, Height = 40,
+            Font = AppTheme.Display(23), ForeColor = Color.White
         });
         header.Controls.Add(new Label
         {
-            Text = "Chọn file → kiểm tra dữ liệu → chọn mẫu → in",
-            Left = 30, Top = 55, Width = 520, Height = 24,
+            Text = "Đưa file vào, kiểm tra nhanh rồi in — app tự xử lý file data BarTender.",
+            Left = 32, Top = 60, Width = 650, Height = 24,
             Font = AppTheme.Body(10), ForeColor = Color.FromArgb(195, 211, 206)
         });
 
-        var config = new Button { Text = "Mẫu tem && cài đặt", Width = 170, Height = 40, Top = 25 };
+        var config = new Button { Text = "Quản lý mẫu tem", Width = 166, Height = 40, Top = 31 };
         config.Left = header.Width - 322;
         config.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-        AppTheme.StyleSecondary(config);
+        AppTheme.StyleHeaderButton(config);
         config.Click += (_, _) =>
         {
             using var form = new FormConfig();
-            if (form.ShowDialog(this) == DialogResult.OK) ReloadTemplates();
+            form.ShowDialog(this);
+            ReloadTemplates();
         };
         header.Controls.Add(config);
 
         var history = new Button { Text = "Lịch sử", Width = 110, Height = 40, Top = 25 };
+        history.Top = 31;
         history.Left = header.Width - 136;
         history.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-        AppTheme.StyleSecondary(history);
+        AppTheme.StyleHeaderButton(history);
         history.Click += (_, _) => { using var form = new FormHistory(); form.ShowDialog(this); };
         header.Controls.Add(history);
         return header;
@@ -95,12 +100,12 @@ public class FormMain : Form
         var body = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            Padding = new Padding(22, 18, 22, 12),
+            Padding = new Padding(24, 20, 24, 14),
             RowCount = 2,
             ColumnCount = 2,
             BackColor = AppTheme.Canvas
         };
-        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
+        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 126));
         body.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 68));
         body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32));
@@ -114,25 +119,33 @@ public class FormMain : Form
 
     private Control BuildFileStep()
     {
-        var panel = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.Surface, Padding = new Padding(20) };
+        var panel = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.Surface, Padding = new Padding(22) };
         panel.Controls.Add(new Label
         {
-            Text = "1  Chọn file Excel từ KiotViet",
-            Left = 18, Top = 13, Width = 330, Height = 28,
+            Text = "01",
+            Left = 20, Top = 17, Width = 36, Height = 24,
+            Font = AppTheme.Body(9F, FontStyle.Bold), ForeColor = AppTheme.AccentDark,
+            BackColor = AppTheme.AccentSoft, TextAlign = ContentAlignment.MiddleCenter
+        });
+        panel.Controls.Add(new Label
+        {
+            Text = "Chọn bảng giá KiotViet",
+            Left = 68, Top = 14, Width = 360, Height = 30,
             Font = AppTheme.Display(14), ForeColor = AppTheme.Ink
         });
 
-        txtExcel.SetBounds(20, 52, 720, 34);
+        txtExcel.SetBounds(22, 60, 720, 38);
         txtExcel.ReadOnly = true;
-        txtExcel.PlaceholderText = "Chưa chọn file .xls hoặc .xlsx";
+        txtExcel.BackColor = Color.White;
+        txtExcel.PlaceholderText = "Kéo file vào đây hoặc bấm Chọn file Excel";
         panel.Controls.Add(txtExcel);
 
-        var choose = new Button { Text = "Chọn file", Width = 120, Height = 34, Left = 756, Top = 50 };
+        var choose = new Button { Text = "Chọn file Excel", Width = 145, Height = 38, Left = 758, Top = 60 };
         AppTheme.StylePrimary(choose);
         choose.Click += (_, _) => ChooseExcel();
         panel.Controls.Add(choose);
 
-        lblFileState.SetBounds(894, 53, 330, 36);
+        lblFileState.SetBounds(922, 63, 330, 34);
         lblFileState.ForeColor = AppTheme.Muted;
         lblFileState.Font = AppTheme.Body(9.5F, FontStyle.Bold);
         panel.Controls.Add(lblFileState);
@@ -141,10 +154,10 @@ public class FormMain : Form
 
     private Control BuildDataPanel()
     {
-        var panel = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.Surface, Margin = new Padding(0, 12, 10, 0), Padding = new Padding(18) };
+        var panel = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.Surface, Margin = new Padding(0, 14, 10, 0), Padding = new Padding(20) };
         panel.Controls.Add(new Label
         {
-            Text = "2  Kiểm tra dữ liệu",
+            Text = "02  Kiểm tra và sửa dữ liệu",
             Dock = DockStyle.Top, Height = 34,
             Font = AppTheme.Display(14), ForeColor = AppTheme.Ink
         });
@@ -155,13 +168,17 @@ public class FormMain : Form
         panel.Controls.Add(lblSummary);
         lblSummary.BringToFront();
 
-        var zoomBar = new FlowLayoutPanel
+        var commandBar = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 38,
-            FlowDirection = FlowDirection.RightToLeft,
-            Padding = new Padding(0, 2, 0, 2)
+            Height = 42,
+            ColumnCount = 2,
+            Padding = new Padding(0, 3, 0, 3)
         };
+        commandBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
+        commandBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
+        var editActions = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight };
+        var zoomBar = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
         var zoomIn = new Button { Text = "+", Width = 36, Height = 30 };
         var zoomOut = new Button { Text = "−", Width = 36, Height = 30 };
         zoomSlider.Minimum = 50;
@@ -189,8 +206,8 @@ public class FormMain : Form
         zoomBar.Controls.Add(zoomOut);
         zoomBar.Controls.Add(new Label
         {
-            Text = "Ctrl + lăn chuột để zoom",
-            Width = 170,
+            Text = "Thu phóng",
+            Width = 82,
             Height = 30,
             TextAlign = ContentAlignment.MiddleRight,
             ForeColor = AppTheme.Muted
@@ -201,10 +218,12 @@ public class FormMain : Form
         AppTheme.StyleSecondary(deleteRows);
         saveExcel.Click += (_, _) => SaveEditedExcel();
         deleteRows.Click += (_, _) => DeleteSelectedRows();
-        zoomBar.Controls.Add(saveExcel);
-        zoomBar.Controls.Add(deleteRows);
-        panel.Controls.Add(zoomBar);
-        zoomBar.BringToFront();
+        editActions.Controls.Add(saveExcel);
+        editActions.Controls.Add(deleteRows);
+        commandBar.Controls.Add(editActions, 0, 0);
+        commandBar.Controls.Add(zoomBar, 1, 0);
+        panel.Controls.Add(commandBar);
+        commandBar.BringToFront();
 
         grid.Dock = DockStyle.Fill;
         grid.ReadOnly = false;
@@ -215,6 +234,8 @@ public class FormMain : Form
         grid.MultiSelect = true;
         grid.BackgroundColor = AppTheme.Surface;
         grid.BorderStyle = BorderStyle.None;
+        grid.GridColor = AppTheme.Border;
+        grid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
         grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
         grid.ColumnHeadersDefaultCellStyle.BackColor = AppTheme.SurfaceMuted;
         grid.ColumnHeadersDefaultCellStyle.ForeColor = AppTheme.Ink;
@@ -233,15 +254,23 @@ public class FormMain : Form
         grid.RowHeadersWidth = 54;
         panel.Controls.Add(grid);
         grid.BringToFront();
+        lblEmptyData.Text = "Chưa có dữ liệu\n\nKéo file Excel KiotViet vào cửa sổ để bắt đầu.";
+        lblEmptyData.TextAlign = ContentAlignment.MiddleCenter;
+        lblEmptyData.Font = AppTheme.Body(11F, FontStyle.Bold);
+        lblEmptyData.ForeColor = AppTheme.Muted;
+        lblEmptyData.BackColor = AppTheme.Surface;
+        lblEmptyData.Dock = DockStyle.Fill;
+        panel.Controls.Add(lblEmptyData);
+        lblEmptyData.BringToFront();
         return panel;
     }
 
     private Control BuildTemplatePanel()
     {
-        var panel = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.Surface, Margin = new Padding(10, 12, 0, 0), Padding = new Padding(18) };
+        var panel = new Panel { Dock = DockStyle.Fill, BackColor = AppTheme.Surface, Margin = new Padding(10, 14, 0, 0), Padding = new Padding(20) };
         panel.Controls.Add(new Label
         {
-            Text = "3  Chọn loại tem",
+            Text = "03  Chọn mẫu tem",
             Dock = DockStyle.Top, Height = 34,
             Font = AppTheme.Display(14), ForeColor = AppTheme.Ink
         });
@@ -263,12 +292,12 @@ public class FormMain : Form
 
     private Control BuildFooter()
     {
-        var footer = new Panel { Dock = DockStyle.Bottom, Height = 82, BackColor = AppTheme.Surface, Padding = new Padding(22) };
-        btnPrint.Text = "In tem";
-        btnPrint.Width = 170;
-        btnPrint.Height = 44;
-        btnPrint.Left = footer.Width - 194;
-        btnPrint.Top = 18;
+        var footer = new Panel { Dock = DockStyle.Bottom, Height = 94, BackColor = AppTheme.Surface, Padding = new Padding(24) };
+        btnPrint.Text = "In tem ngay";
+        btnPrint.Width = 190;
+        btnPrint.Height = 48;
+        btnPrint.Left = footer.Width - 216;
+        btnPrint.Top = 22;
         btnPrint.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         AppTheme.StylePrimary(btnPrint);
         btnPrint.Enabled = false;
@@ -276,10 +305,10 @@ public class FormMain : Form
         footer.Controls.Add(btnPrint);
 
         btnPreview.Text = "Xem trước bản in";
-        btnPreview.Width = 170;
-        btnPreview.Height = 44;
-        btnPreview.Left = btnPrint.Left - 184;
-        btnPreview.Top = 18;
+        btnPreview.Width = 176;
+        btnPreview.Height = 48;
+        btnPreview.Left = btnPrint.Left - 190;
+        btnPreview.Top = 22;
         btnPreview.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         AppTheme.StyleSecondary(btnPreview);
         btnPreview.Enabled = false;
@@ -288,8 +317,8 @@ public class FormMain : Form
 
         footer.Controls.Add(new Label
         {
-            Text = "App không thay đổi file Excel gốc.",
-            Left = 24, Top = 31, Width = 400, Height = 24,
+            Text = "File KiotViet gốc luôn được giữ nguyên. App chỉ cập nhật file data trung gian.",
+            Left = 26, Top = 35, Width = 620, Height = 24,
             Font = AppTheme.Body(9.5F), ForeColor = AppTheme.Muted
         });
         return footer;
@@ -308,9 +337,12 @@ public class FormMain : Form
         try
         {
             products = labelService.ReadProducts(path);
-            txtExcel.Text = path;
+            selectedExcelPath = path;
+            txtExcel.Text = Path.GetFileName(path);
+            fileToolTip.SetToolTip(txtExcel, path);
             grid.DataSource = products;
             FormatGrid();
+            lblEmptyData.Visible = false;
             lblFileState.Text = $"✓ Đã đọc {products.Count:N0} sản phẩm";
             lblFileState.ForeColor = AppTheme.AccentDark;
             UpdateSummary();
@@ -322,7 +354,9 @@ public class FormMain : Form
         catch (Exception ex)
         {
             products.Clear();
+            selectedExcelPath = "";
             grid.DataSource = null;
+            lblEmptyData.Visible = true;
             lblFileState.Text = "Không đọc được file";
             lblFileState.ForeColor = AppTheme.Danger;
             MessageBox.Show(ex.Message, "Không đọc được dữ liệu", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -722,12 +756,9 @@ public class FormMain : Form
         }
         else
         {
-            List<Button> readyButtons = templateList.Controls
-                .OfType<Button>()
-                .Where(button => button.Enabled)
-                .ToList();
-            if (readyButtons.Count == 1)
-                readyButtons[0].PerformClick();
+            List<Button> buttons = templateList.Controls.OfType<Button>().ToList();
+            if (buttons.Count == 1)
+                buttons[0].PerformClick();
         }
         UpdateActions();
     }
@@ -744,7 +775,7 @@ public class FormMain : Form
             Height = 68,
             Margin = new Padding(0, 0, 0, 9),
             Tag = item,
-            Enabled = ready,
+            Enabled = true,
             AutoEllipsis = true
         };
         AppTheme.StyleSecondary(button);
@@ -768,12 +799,17 @@ public class FormMain : Form
 
     private void UpdateActions()
     {
-        var ready = products.Count > 0 && selectedLabel != null && selectedLabel.GetReadinessIssues().Count == 0;
+        List<string> templateIssues = selectedLabel?.GetReadinessIssues() ?? [];
+        var ready = products.Count > 0 && selectedLabel != null && templateIssues.Count == 0;
         btnPreview.Enabled = ready;
         btnPrint.Enabled = ready;
         lblTemplateState.Text = selectedLabel == null
-            ? "Chưa chọn loại tem."
-            : ready ? $"✓ Sẽ in bằng: {selectedLabel.Name}" : "Hãy chọn file dữ liệu trước.";
+            ? "Chọn một mẫu để tiếp tục."
+            : templateIssues.Count > 0
+                ? "Cần sửa mẫu: " + string.Join(" • ", templateIssues)
+                : products.Count == 0
+                    ? $"✓ {selectedLabel.Name} đã sẵn sàng. Hãy chọn file Excel."
+                    : $"✓ Sẽ in bằng: {selectedLabel.Name}";
         lblTemplateState.BackColor = ready ? Color.FromArgb(224, 243, 235) : AppTheme.SurfaceMuted;
         lblTemplateState.ForeColor = ready ? AppTheme.AccentDark : AppTheme.Muted;
     }
@@ -783,7 +819,7 @@ public class FormMain : Form
         if (!EnsureReady()) return;
         grid.EndEdit();
         using var form = new FormPreview(
-            txtExcel.Text,
+            selectedExcelPath,
             selectedLabel!.Code,
             "",
             products.Select(CloneProduct).ToList());
@@ -808,7 +844,7 @@ public class FormMain : Form
             var printProducts = products.Select(CloneProduct).ToList();
             var count = await Task.Run(() => labelService.PrintProducts(
                 printProducts,
-                txtExcel.Text,
+                selectedExcelPath,
                 selectedLabel.Code,
                 ""));
             MessageBox.Show($"Đã gửi lệnh in cho {count:N0} sản phẩm.", "In thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -820,7 +856,7 @@ public class FormMain : Form
         finally
         {
             UseWaitCursor = false;
-            btnPrint.Text = "In tem";
+            btnPrint.Text = "In tem ngay";
             UpdateActions();
         }
     }

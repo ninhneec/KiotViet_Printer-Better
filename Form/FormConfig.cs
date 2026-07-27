@@ -326,7 +326,9 @@ public class FormConfig : Form
         item.RequiresEmployeeCode = false;
         item.UseBarcodeParser = false;
         item.AppendEmployeeCode = false;
-        RefreshList();
+        // Không bind lại DataSource trong lúc đang gõ. Bind lại sẽ làm
+        // ListBox đổi selection và đổ dữ liệu của mẫu khác vào form.
+        lstLabels.Refresh();
         UpdateStatus();
     }
 
@@ -404,6 +406,7 @@ public class FormConfig : Form
     private void PersistConfig(bool closeAfterSave)
     {
         UpdateSelectedFromEditor();
+        string? selectedCode = (lstLabels.SelectedItem as LabelDefinition)?.Code;
         var duplicate = labels.GroupBy(x => x.Code, StringComparer.OrdinalIgnoreCase).FirstOrDefault(x => x.Count() > 1);
         if (duplicate != null)
         {
@@ -436,7 +439,11 @@ public class FormConfig : Form
         foreach (LabelDefinition item in ConfigService.Instance.Config.Labels)
             labels.Add(Clone(item));
         RefreshList();
-        if (labels.Count > 0)
+        LabelDefinition? savedSelection = labels.FirstOrDefault(item =>
+            item.Code.Equals(selectedCode, StringComparison.OrdinalIgnoreCase));
+        if (savedSelection != null)
+            lstLabels.SelectedItem = savedSelection;
+        else if (labels.Count > 0)
             lstLabels.SelectedIndex = 0;
         loading = false;
         ShowSelected();
