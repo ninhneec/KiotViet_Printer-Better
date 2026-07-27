@@ -4,6 +4,7 @@ using NPOI.XSSF.UserModel;
 using KiotVietLabelPrinter.Models;
 using System.Globalization;
 using System.Text;
+using System.Diagnostics;
 
 namespace KiotVietLabelPrinter.Services;
 
@@ -111,6 +112,7 @@ public class ExcelService
     private static FileStream OpenDataFileWithRetry(string path, int maxAttempts = 120, int delayMs = 250)
     {
         IOException? lastError = null;
+        bool attemptedHiddenBarTenderCleanup = false;
         for (int attempt = 1; attempt <= maxAttempts; attempt++)
         {
             try
@@ -122,6 +124,11 @@ public class ExcelService
             catch (IOException ex) when (attempt < maxAttempts)
             {
                 lastError = ex;
+                if (!attemptedHiddenBarTenderCleanup)
+                {
+                    attemptedHiddenBarTenderCleanup = true;
+                    CloseHiddenBarTenderProcesses();
+                }
                 Thread.Sleep(delayMs);
             }
         }
@@ -132,6 +139,32 @@ public class ExcelService
             "App đã tự chờ và thử lại nhưng BarTender chưa nhả kết nối. " +
             "Hãy thoát hẳn BarTender một lần rồi bấm In lại.",
             lastError);
+    }
+
+    private static void CloseHiddenBarTenderProcesses()
+    {
+        foreach (Process process in Process.GetProcessesByName("bartend"))
+        {
+            using (process)
+            {
+                try
+                {
+                    process.Refresh();
+                    // Chỉ dọn instance chạy nền không còn cửa sổ. Không tự
+                    // đóng BarTender mà người dùng đang mở để sửa mẫu tem.
+                    if (process.MainWindowHandle != IntPtr.Zero || process.HasExited)
+                        continue;
+
+                    process.Kill(true);
+                    process.WaitForExit(5000);
+                }
+                catch
+                {
+                    // Retry ghi file bên ngoài sẽ đưa ra thông báo chính xác
+                    // nếu tiến trình không thể được đóng.
+                }
+            }
+        }
     }
 
     private const int BarcodeColumnIndex = 5; // Cột F
