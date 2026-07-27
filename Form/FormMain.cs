@@ -839,13 +839,17 @@ public class FormMain : Form
     private void UpdateActions()
     {
         List<string> templateIssues = selectedLabel?.GetReadinessIssues() ?? [];
-        var ready = products.Count > 0 && selectedLabel != null && templateIssues.Count == 0;
+        bool barTenderReady = ConfigService.Instance.IsBarTenderExecutableValid();
+        var ready = products.Count > 0 && selectedLabel != null &&
+                    templateIssues.Count == 0 && barTenderReady;
         btnPreview.Enabled = ready;
         btnPrint.Enabled = ready;
         lblTemplateState.Text = selectedLabel == null
             ? "Chọn một mẫu để tiếp tục."
             : templateIssues.Count > 0
                 ? "Cần sửa mẫu: " + string.Join(" • ", templateIssues)
+                : !barTenderReady
+                    ? "Cần chọn đúng file bartend.exe trong Quản lý mẫu tem."
                 : products.Count == 0
                     ? $"✓ {selectedLabel.Name} đã sẵn sàng. Hãy chọn file Excel."
                     : $"✓ Sẽ in bằng: {selectedLabel.Name}";

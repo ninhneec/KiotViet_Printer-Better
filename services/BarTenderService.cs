@@ -28,6 +28,11 @@ public class BarTenderService
 
         if (!File.Exists(bartenderExe))
             throw new Exception($"Không tìm thấy BarTender.exe:\n{bartenderExe}");
+        if (!Path.GetFileName(bartenderExe).Equals("bartend.exe", StringComparison.OrdinalIgnoreCase))
+            throw new Exception(
+                "File đang chọn không phải chương trình BarTender.\n\n" +
+                $"Đang chọn: {bartenderExe}\n\n" +
+                "Mở Quản lý mẫu tem và chọn đúng file bartend.exe.");
 
         if (string.IsNullOrWhiteSpace(btwFile))
             throw new Exception("Đường dẫn file tem đang rỗng.");

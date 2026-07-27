@@ -54,7 +54,9 @@ internal static class Program
             var configService = ConfigService.Instance;
             string templateCopy = Path.Combine(runtime, "source-template.btw");
             File.Copy(sourceTemplate, templateCopy);
-            configService.Config.BarTenderExe = Environment.ProcessPath ?? sourceTemplate;
+            string fakeBarTender = Path.Combine(runtime, "bartend.exe");
+            File.Copy(sourceTemplate, fakeBarTender);
+            configService.Config.BarTenderExe = fakeBarTender;
             configService.Config.LastExcelFile = uiExcel;
             configService.Config.LastFolder = Path.GetDirectoryName(sourceExcel) ?? "";
             configService.Config.Labels =

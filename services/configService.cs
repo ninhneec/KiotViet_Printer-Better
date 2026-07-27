@@ -116,6 +116,13 @@ public class ConfigService
             File.Exists(x.TemplatePath));
     }
 
+    public bool IsBarTenderExecutableValid()
+    {
+        string path = Config.BarTenderExe;
+        return File.Exists(path) &&
+               Path.GetFileName(path).Equals("bartend.exe", StringComparison.OrdinalIgnoreCase);
+    }
+
     public string StoreTemplate(string sourcePath, string labelCode)
     {
         if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))

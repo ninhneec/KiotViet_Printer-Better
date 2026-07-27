@@ -186,6 +186,11 @@ public class FormConfig : Form
 
         foreach (var text in new[] { txtName, txtCode, txtDescription, txtTemplate })
             text.TextChanged += (_, _) => UpdateSelectedFromEditor();
+        txtBarTender.TextChanged += (_, _) =>
+        {
+            if (!loading)
+                UpdateStatus();
+        };
 
         return host;
     }
@@ -342,6 +347,11 @@ public class FormConfig : Form
             return;
         }
         var issues = item.GetReadinessIssues();
+        if (!File.Exists(txtBarTender.Text) ||
+            !Path.GetFileName(txtBarTender.Text).Equals("bartend.exe", StringComparison.OrdinalIgnoreCase))
+        {
+            issues.Add("chưa chọn đúng bartend.exe");
+        }
         lblStatus.Text = issues.Count == 0
             ? "✓ Mẫu đã sẵn sàng để in."
             : "Cần bổ sung: " + string.Join(" • ", issues);
