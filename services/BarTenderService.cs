@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Drawing.Printing;
 using System.Runtime.InteropServices;
+using System.Reflection;
+using System.Globalization;
 using System.Text;
 using System.Windows.Forms;
 
@@ -250,12 +252,34 @@ public class BarTenderService
 
                 application = Activator.CreateInstance(applicationType)
                     ?? throw new Exception("Không thể khởi tạo BarTender Automation.");
-                dynamic barTender = application;
-                barTender.Visible = false;
-                object messages;
-                response = Convert.ToString(
-                    barTender.XMLScript(xmlPath, 1, out messages)) ?? string.Empty;
-                barTender.Quit(1);
+                applicationType.InvokeMember(
+                    "Visible",
+                    BindingFlags.SetProperty,
+                    null,
+                    application,
+                    [false],
+                    CultureInfo.InvariantCulture);
+
+                object?[] xmlArguments = [xmlPath, 1, null];
+                ParameterModifier outMessages = new(xmlArguments.Length);
+                outMessages[2] = true;
+                object? xmlResult = applicationType.InvokeMember(
+                    "XMLScript",
+                    BindingFlags.InvokeMethod,
+                    null,
+                    application,
+                    xmlArguments,
+                    [outMessages],
+                    CultureInfo.InvariantCulture,
+                    null);
+                response = Convert.ToString(xmlResult) ?? string.Empty;
+                applicationType.InvokeMember(
+                    "Quit",
+                    BindingFlags.InvokeMethod,
+                    null,
+                    application,
+                    [1],
+                    CultureInfo.InvariantCulture);
             }
             catch (Exception ex)
             {
@@ -264,8 +288,13 @@ public class BarTenderService
                 {
                     if (application != null)
                     {
-                        dynamic barTender = application;
-                        barTender.Quit(1);
+                        application.GetType().InvokeMember(
+                            "Quit",
+                            BindingFlags.InvokeMethod,
+                            null,
+                            application,
+                            [1],
+                            CultureInfo.InvariantCulture);
                     }
                 }
                 catch
