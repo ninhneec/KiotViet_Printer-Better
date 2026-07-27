@@ -279,6 +279,20 @@ public class BarTenderService
               WScript.Quit 4
             End If
 
+            ' Ghi de cac tuy chon da luu trong .btw co the mo Print Wizard.
+            ' BarTender 10.1 ho tro cac thuoc tinh nay tren Format ActiveX.
+            Err.Clear
+            btFormat.SelectRecordsAtPrint = False
+            btFormat.EnablePrompting = False
+            btFormat.AutoPrintAgain = False
+            btFormat.PrintToFile = False
+            If Err.Number <> 0 Then
+              WScript.StdErr.WriteLine "DISABLE_PROMPTS: " & Err.Description
+              btFormat.Close 1
+              btApp.Quit 1
+              WScript.Quit 5
+            End If
+
             If Len(printerName) > 0 Then
               Err.Clear
               Set btPrintSetup = btFormat.PrintSetup
@@ -287,17 +301,19 @@ public class BarTenderService
                 WScript.StdErr.WriteLine "PRINTER: " & Err.Description
                 btFormat.Close 1
                 btApp.Quit 1
-                WScript.Quit 5
+                WScript.Quit 6
               End If
             End If
 
             Err.Clear
-            btFormat.PrintOut False, True
+            ' Tham so 1: hien cua so trang thai; tham so 2: hien Print dialog.
+            ' Ca hai phai False de job di thang xuong spooler.
+            btFormat.PrintOut False, False
             If Err.Number <> 0 Then
               WScript.StdErr.WriteLine "PRINT_OUT: " & Err.Description
               btFormat.Close 1
               btApp.Quit 1
-              WScript.Quit 6
+              WScript.Quit 7
             End If
 
             btFormat.Close 1
