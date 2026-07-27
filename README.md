@@ -25,6 +25,17 @@ Mở **Mẫu tem & cài đặt** để:
 Thao tác **Bỏ khỏi app** chỉ xóa cấu hình. App không xóa file `.btw`, file dữ liệu hoặc
 file Excel gốc của người dùng.
 
+### Mẫu tem giá không dùng file data
+
+Chọn cách xử lý `DIRECT_PRICE` để truyền dữ liệu thẳng vào BarTender. Trong file `.btw`,
+hãy tạo ba **Named Data Sources** đúng tên:
+
+- `Tên hàng`
+- `Giá bán`
+- `Đơn vị tính`
+
+Chế độ này không cần chọn file data trung gian.
+
 ## Yêu cầu khi chạy
 
 - Windows 10/11;

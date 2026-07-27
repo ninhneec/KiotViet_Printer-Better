@@ -166,7 +166,7 @@ public class FormConfig : Form
         AddFileField(layout, "File dữ liệu", txtData, "Chọn data", "*.xls;*.xlsx;*.csv", 5);
 
         cboHandler.DropDownStyle = ComboBoxStyle.DropDownList;
-        cboHandler.Items.AddRange(["GENERIC", "FULL", "BARCODE", "GLASSES"]);
+        cboHandler.Items.AddRange(["DIRECT_PRICE", "GENERIC", "FULL", "BARCODE", "GLASSES"]);
         AddField(layout, "Cách xử lý", cboHandler, 6);
 
         var options = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
