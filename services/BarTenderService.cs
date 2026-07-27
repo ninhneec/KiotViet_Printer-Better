@@ -18,126 +18,108 @@ public class BarTenderService
     public void Print(string btwFile, Dictionary<string, string>? namedSubStrings)
     {
         PrintGate.Wait();
-
+        string stage = "Khởi tạo";
+        string? xmlPath = null;
         try
         {
-        string configuredBarTenderPath = ConfigService.Instance.Config.BarTenderExe;
-        string bartenderExe = ConfigService.Instance.ResolveBarTenderExecutable(configuredBarTenderPath);
+            WritePrintLog($"START template={btwFile}");
+            stage = "Tìm BarTender";
+            string configuredPath = ConfigService.Instance.Config.BarTenderExe;
+            string bartenderExe = ConfigService.Instance.ResolveBarTenderExecutable(configuredPath);
+            if (!File.Exists(bartenderExe) ||
+                !Path.GetFileName(bartenderExe).Equals("bartend.exe", StringComparison.OrdinalIgnoreCase))
+                throw new Exception(ConfigService.Instance.GetBarTenderDiagnostic());
+            if (string.IsNullOrWhiteSpace(btwFile) || !File.Exists(btwFile))
+                throw new Exception($"Không tìm thấy file tem:\n{btwFile}");
 
-        if (string.IsNullOrWhiteSpace(bartenderExe))
-            throw new Exception("Chưa cấu hình đường dẫn BarTender.exe.");
+            string printerName = ConfigService.Instance.Config.PrinterName?.Trim() ?? "";
+            if (!string.IsNullOrWhiteSpace(printerName) &&
+                !PrinterSettings.InstalledPrinters.Cast<string>()
+                    .Contains(printerName, StringComparer.OrdinalIgnoreCase))
+                throw new Exception($"Không tìm thấy máy in đã chọn:\n{printerName}");
 
-        if (!File.Exists(bartenderExe))
-            throw new Exception(
-                "Không tìm thấy chương trình BarTender.\n\n" +
-                ConfigService.Instance.GetBarTenderDiagnostic());
-        if (!Path.GetFileName(bartenderExe).Equals("bartend.exe", StringComparison.OrdinalIgnoreCase))
-            throw new Exception(
-                "File đang chọn không phải chương trình BarTender.\n\n" +
-                $"Đã chọn: {configuredBarTenderPath}\n" +
-                $"Đã giải đường dẫn: {bartenderExe}\n\n" +
-                ConfigService.Instance.GetBarTenderDiagnostic() + "\n\n" +
-                "Mở Quản lý mẫu tem và chọn đúng file bartend.exe hoặc shortcut BarTender.");
+            stage = "Tạo XML";
+            xmlPath = CreatePrintXmlNearApp(btwFile, namedSubStrings, printerName);
+            WritePrintLog(
+                $"XML={xmlPath} printer={(string.IsNullOrWhiteSpace(printerName) ? "(trong file .btw)" : printerName)}");
 
-        if (string.IsNullOrWhiteSpace(btwFile))
-            throw new Exception("Đường dẫn file tem đang rỗng.");
+            bool hasRunningBarTender = Process.GetProcessesByName("bartend").Length > 0;
+            string arguments = $"/XMLScript=\"{xmlPath}\"" + (hasRunningBarTender ? "" : " /X");
+            ProcessStartInfo psi = new()
+            {
+                FileName = bartenderExe,
+                Arguments = arguments,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
 
-        if (!File.Exists(btwFile))
-            throw new Exception($"Không tìm thấy file tem:\n{btwFile}");
+            stage = "Mở BarTender";
+            using Process? process = Process.Start(psi);
+            if (process == null)
+                throw new Exception("Không thể mở tiến trình BarTender.");
 
-        string printerName = GetDefaultPrinterName();
+            // Đọc song song để tránh deadlock khi bộ đệm stdout/stderr đầy.
+            Task<string> stdOutTask = process.StandardOutput.ReadToEndAsync();
+            Task<string> stdErrTask = process.StandardError.ReadToEndAsync();
+            stage = "Chờ BarTender xử lý";
+            bool exited = process.WaitForExit(hasRunningBarTender ? 90000 : 30000);
+            if (!exited)
+                throw new Exception(
+                    "BarTender chưa phản hồi trong thời gian cho phép. " +
+                    "Có thể đang chờ một hộp thoại xác nhận.");
+            string stdOut = stdOutTask.GetAwaiter().GetResult();
+            string stdErr = stdErrTask.GetAwaiter().GetResult();
+            if (process.ExitCode != 0)
+                throw new Exception(
+                    $"BarTender trả ExitCode {process.ExitCode}.\n\nSTDERR:\n{stdErr}\n\nSTDOUT:\n{stdOut}");
 
-        string xmlPath = CreatePrintXmlNearApp(
-            btwFile,
-            namedSubStrings,
-            printerName);
-
-        string processName =
-            Path.GetFileNameWithoutExtension(bartenderExe);
-
-        bool hasRunningBarTender =
-            Process.GetProcessesByName(processName).Length > 0;
-
-        // Nếu BarTender đã mở sẵn (có thể đang mở nhiều file), chỉ gửi
-        // XML để instance hiện tại xử lý; không dùng /X vì /X yêu cầu đóng
-        // app và có thể bị kẹt bởi các tài liệu đang mở/chờ xác nhận.
-        string arguments = $"/XMLScript=\"{xmlPath}\"";
-
-        if (!hasRunningBarTender)
-            arguments += " /X";
-
-        // Popup để biết chắc app đang chạy đúng code mới
-        // MessageBox.Show($"XML vừa tạo:\n{xmlPath}", "DEBUG BarTender XML");
-
-        ProcessStartInfo psi = new()
-        {
-            FileName = bartenderExe,
-            Arguments = arguments,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WindowStyle = ProcessWindowStyle.Hidden,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        };
-
-        using Process? process = Process.Start(psi);
-
-        if (process == null)
-            throw new Exception("Không thể gửi lệnh in tới BarTender.");
-
-        bool exited = process.WaitForExit(30000);
-
-        // Khi BarTender đã mở sẵn, tiến trình handoff có thể thoát chậm.
-        // Chờ thêm để đảm bảo lệnh in hiện tại hoàn tất trước khi tem kế tiếp chạy.
-        if (!exited && hasRunningBarTender)
-            exited = process.WaitForExit(90000);
-
-        if (!exited)
-            throw new Exception(
-                "BarTender xử lý lệnh in quá thời gian chờ (30 giây).\n\n" +
-                $"Template: {btwFile}\n" +
-                $"Printer: {printerName}\n" +
-                $"XML: {xmlPath}\n\n" +
-                "Vui lòng kiểm tra BarTender có đang bị treo hoặc đang chờ hộp thoại xác nhận.");
-
-        string stdOut = process.StandardOutput.ReadToEnd();
-        string stdErr = process.StandardError.ReadToEnd();
-
-        if (process.ExitCode != 0 || !string.IsNullOrWhiteSpace(stdErr))
-        {
-            string xmlContent = SafeReadAllText(xmlPath);
-
-            throw new Exception(
-                "BarTender báo lỗi khi xử lý XML in.\n\n" +
-                $"Template: {btwFile}\n" +
-                $"Printer: {printerName}\n" +
-                $"XML: {xmlPath}\n" +
-                $"ExitCode: {process.ExitCode}\n\n" +
-                $"STDERR:\n{stdErr}\n\n" +
-                $"STDOUT:\n{stdOut}\n\n" +
-                $"Nội dung XML:\n{xmlContent}");
+            if (!string.IsNullOrWhiteSpace(printerName))
+            {
+                stage = "Chờ hàng đợi máy in";
+                WaitForPrintJobToFinish(printerName);
+            }
+            else
+            {
+                // Khi dùng máy in lưu trong .btw, app không biết tên queue.
+                // Chỉ chờ BarTender đọc xong file data, không khóa app 10 phút.
+                Thread.Sleep(1200);
+            }
+            WritePrintLog($"SUCCESS template={btwFile}");
         }
-
-        // process.WaitForExit ở trên chỉ đảm bảo tiến trình HAND-OFF lệnh
-        // /XMLScript đã thoát — khi BarTender đã mở sẵn, tiến trình đó chỉ
-        // chuyển lệnh cho instance đang chạy rồi thoát gần như ngay lập
-        // tức, KHÔNG chờ BarTender in xong thật sự. Nếu code tiếp tục ghi
-        // đè file data / gửi lệnh in kế tiếp trong lúc BarTender vẫn còn
-        // đang tạo/spool số lượng lớn nhãn của lệnh này, dữ liệu dùng chung
-        // (đặc biệt là tem kính: 1 dòng data ghi đè liên tục mỗi mã) sẽ bị
-        // ghi đè giữa chừng → thiếu tem hoặc lẫn mã. Chờ hàng đợi máy in
-        // thật sự rỗng trở lại trước khi trả quyền điều khiển, để lệnh in
-        // kế tiếp (nếu có, ví dụ vòng lặp in nhiều mã tem kính) chỉ bắt đầu
-        // sau khi lệnh này đã spool xong hoàn toàn.
-        WaitForPrintJobToFinish(printerName);
-
-        // Đệm ngắn giữa 2 lệnh in giúp tránh va chạm dữ liệu file data
-        // với template đang xử lý ngay sau khi job trước vừa kết thúc.
-        Thread.Sleep(150);
+        catch (Exception ex)
+        {
+            WritePrintLog($"ERROR stage={stage} xml={xmlPath ?? "(chưa tạo)"} message={ex}");
+            throw new Exception(
+                $"Lỗi tại bước: {stage}\n\n{ex.Message}\n\nLog: {GetPrintLogPath()}",
+                ex);
         }
         finally
         {
             PrintGate.Release();
+        }
+    }
+
+    private static string GetPrintLogPath()
+    {
+        string folder = Path.Combine(ConfigService.Instance.DataDirectory, "Logs");
+        Directory.CreateDirectory(folder);
+        return Path.Combine(folder, "printing.log");
+    }
+
+    private static void WritePrintLog(string message)
+    {
+        try
+        {
+            File.AppendAllText(
+                GetPrintLogPath(),
+                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}{Environment.NewLine}",
+                new UTF8Encoding(false));
+        }
+        catch
+        {
         }
     }
 
@@ -148,7 +130,7 @@ public class BarTenderService
     private static void WaitForPrintJobToFinish(
         string printerName,
         int startupGraceMs = 8000,
-        int maxWaitMs = 600000,
+        int maxWaitMs = 120000,
         int pollIntervalMs = 200)
     {
         if (!OpenPrinter(printerName, out IntPtr hPrinter, IntPtr.Zero))
@@ -257,8 +239,7 @@ public class BarTenderService
             Dictionary<string, string>? namedSubStrings,
             string printerName)
     {
-        string appFolder = AppDomain.CurrentDomain.BaseDirectory;
-        string debugFolder = Path.Combine(appFolder, "debug_xml");
+        string debugFolder = Path.Combine(ConfigService.Instance.DataDirectory, "debug_xml");
         Directory.CreateDirectory(debugFolder);
 
         string xmlPath = Path.Combine(
@@ -273,7 +254,8 @@ public class BarTenderService
         sb.AppendLine("""    <Print>""");
         sb.AppendLine($"      <Format>{EscapeXml(btwFile)}</Format>");
         sb.AppendLine("""      <PrintSetup>""");
-        sb.AppendLine($"        <Printer>{EscapeXml(printerName)}</Printer>");
+        if (!string.IsNullOrWhiteSpace(printerName))
+            sb.AppendLine($"        <Printer>{EscapeXml(printerName)}</Printer>");
         sb.AppendLine("""        <EnablePrompting>false</EnablePrompting>""");
         sb.AppendLine("""      </PrintSetup>""");
 

@@ -126,6 +126,7 @@ internal static class Program
             excelService.ExportProducts(uiExcel, [products[0], secondProduct]);
 
             var configService = ConfigService.Instance;
+            configService.Config.PrinterName = "";
             string templateCopy = Path.Combine(runtime, "source-template.btw");
             File.Copy(sourceTemplate, templateCopy);
             string fakeBarTender = Path.Combine(runtime, "bartend.exe");
@@ -147,6 +148,24 @@ internal static class Program
                 }
             ];
             configService.Save();
+
+            string templatePrinterXml = InvokeStatic<string>(
+                typeof(BarTenderService),
+                "CreatePrintXmlNearApp",
+                templateCopy,
+                null!,
+                "");
+            string templatePrinterContent = File.ReadAllText(templatePrinterXml);
+            Assert(!templatePrinterContent.Contains("<Printer>"),
+                "XML không được ép máy in Windows khi dùng máy in lưu trong .btw.");
+            string overridePrinterXml = InvokeStatic<string>(
+                typeof(BarTenderService),
+                "CreatePrintXmlNearApp",
+                templateCopy,
+                null!,
+                "Máy in tem thử");
+            Assert(File.ReadAllText(overridePrinterXml).Contains("<Printer>Máy in tem thử</Printer>"),
+                "XML thiếu máy in override do người dùng chọn.");
 
             ApplicationConfiguration.Initialize();
             using (var designer = new FormFlowDesigner())
@@ -341,6 +360,7 @@ internal static class Program
             Console.WriteLine($"COPIED VALUES: Tên hàng={copiedName} | Giá bán={copiedPrice:N0} | Đơn vị tính={copiedUnit}");
             Console.WriteLine("PASS: Single template auto-selection");
             Console.WriteLine("PASS: Preview/print readiness");
+            Console.WriteLine("PASS: Template printer default and explicit printer override XML");
             Console.WriteLine("PASS: Preview button opens preview window");
             Console.WriteLine("PASS: Preview remains available without bartend.exe");
             Console.WriteLine("PASS: Search and special data filters");
@@ -433,6 +453,13 @@ internal static class Program
         if (method == null)
             throw new MissingMethodException(instance.GetType().Name, name);
         method.Invoke(instance, args);
+    }
+
+    private static T InvokeStatic<T>(Type type, string name, params object[] args)
+    {
+        MethodInfo method = type.GetMethod(name, BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new MissingMethodException(type.Name, name);
+        return (T)method.Invoke(null, args)!;
     }
 
     private static void Assert(bool condition, string message)

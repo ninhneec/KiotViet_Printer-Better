@@ -9,6 +9,7 @@ namespace KiotVietLabelPrinter.Forms;
 public class FormConfig : Form
 {
     private readonly TextBox txtBarTender = new();
+    private readonly ComboBox cmbPrinter = new();
     private readonly ListBox lstLabels = new();
     private readonly TextBox txtCode = new();
     private readonly TextBox txtName = new();
@@ -153,7 +154,7 @@ public class FormConfig : Form
             Dock = DockStyle.Top,
             AutoSize = true,
             ColumnCount = 3,
-            RowCount = 10
+            RowCount = 11
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -186,7 +187,8 @@ public class FormConfig : Form
 
         AddTitle(layout, "BarTender", "Chọn chương trình BarTender đã cài trên máy.", 7);
         AddFileField(layout, "BarTender.exe", txtBarTender, "Tìm ứng dụng", "*.exe", 8);
-        AddFlowSettings(layout, 9);
+        AddPrinterField(layout, 9);
+        AddFlowSettings(layout, 10);
 
         lblStatus.Dock = DockStyle.Bottom;
         lblStatus.Height = 104;
@@ -203,6 +205,24 @@ public class FormConfig : Form
         };
 
         return host;
+    }
+
+    private void AddPrinterField(TableLayoutPanel layout, int row)
+    {
+        cmbPrinter.Dock = DockStyle.Fill;
+        cmbPrinter.DropDownStyle = ComboBoxStyle.DropDownList;
+        cmbPrinter.Margin = new Padding(0, 3, 8, 10);
+        cmbPrinter.Items.Add("Dùng máy in đã lưu trong file .btw");
+        foreach (string printer in System.Drawing.Printing.PrinterSettings.InstalledPrinters)
+            cmbPrinter.Items.Add(printer);
+        cmbPrinter.SelectedIndexChanged += (_, _) =>
+        {
+            if (!loading)
+                UpdateStatus();
+        };
+        layout.Controls.Add(AppTheme.Caption("Máy in"), 0, row);
+        layout.Controls.Add(cmbPrinter, 1, row);
+        layout.SetColumnSpan(cmbPrinter, 2);
     }
 
     private void AddFlowSettings(TableLayoutPanel layout, int row)
@@ -322,6 +342,13 @@ public class FormConfig : Form
         loading = true;
         var config = ConfigService.Instance.Config;
         txtBarTender.Text = config.BarTenderExe;
+        string printerChoice = string.IsNullOrWhiteSpace(config.PrinterName)
+            ? "Dùng máy in đã lưu trong file .btw"
+            : config.PrinterName;
+        cmbPrinter.SelectedItem = cmbPrinter.Items.Cast<object>()
+            .FirstOrDefault(item => item.ToString() == printerChoice);
+        if (cmbPrinter.SelectedIndex < 0)
+            cmbPrinter.SelectedIndex = 0;
         labels.Clear();
         foreach (var item in config.Labels)
             labels.Add(Clone(item));
@@ -475,6 +502,8 @@ public class FormConfig : Form
             return;
         }
         ConfigService.Instance.Config.BarTenderExe = txtBarTender.Text.Trim();
+        ConfigService.Instance.Config.PrinterName =
+            cmbPrinter.SelectedIndex <= 0 ? "" : cmbPrinter.Text;
         ConfigService.Instance.Config.Labels = labels
             .Select(Clone)
             .Select(item =>
@@ -573,6 +602,8 @@ public class FormConfig : Form
         UpdateSelectedFromEditor();
         ConfigService configService = ConfigService.Instance;
         configService.Config.BarTenderExe = txtBarTender.Text.Trim();
+        configService.Config.PrinterName =
+            cmbPrinter.SelectedIndex <= 0 ? "" : cmbPrinter.Text;
         configService.Config.Labels = labels.Select(Clone).ToList();
         configService.Save();
         UpdateStatus();
