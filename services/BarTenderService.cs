@@ -77,13 +77,14 @@ public class BarTenderService
             // Dùng RecordRange trong BTXML; /XMLScript bắt buộc là tham số cuối.
             string arguments = (hasRunningBarTender ? "" : "/X ") +
                                $"/XMLScript=\"{xmlPath}\"";
-            WritePrintLog("METHOD=BTXML10");
-            WritePrintLog($"COMMAND exe={bartenderExe} args={arguments}");
-
             if (databaseBatch)
             {
                 stage = "Gửi lệnh qua BarTender Automation";
-                string response = RunXmlViaActiveX(xmlPath);
+                WritePrintLog("METHOD=ACTIVEX_FORMAT10");
+                string response = RunFormatViaActiveX(
+                    btwFile,
+                    printerName,
+                    $"1-{recordCount!.Value}");
                 WritePrintLog($"ACTIVEX_RESPONSE {LimitLog(response)}");
                 if (ContainsBarTenderError(response))
                     throw new Exception(
@@ -91,6 +92,9 @@ public class BarTenderService
                 WritePrintLog($"SUCCESS template={btwFile}");
                 return;
             }
+
+            WritePrintLog("METHOD=BTXML10");
+            WritePrintLog($"COMMAND exe={bartenderExe} args={arguments}");
 
             ProcessStartInfo psi = new()
             {
@@ -232,7 +236,10 @@ public class BarTenderService
         Thread.Sleep(500);
     }
 
-    private static string RunXmlViaActiveX(string xmlPath)
+    private static string RunFormatViaActiveX(
+        string btwFile,
+        string printerName,
+        string recordRange)
     {
         string runnerPath = Path.Combine(
             ConfigService.Instance.DataDirectory,
@@ -241,25 +248,61 @@ public class BarTenderService
             runnerPath,
             """
             Option Explicit
-            Dim btApp, btMessages, response, xmlPath
-            xmlPath = WScript.Arguments(0)
+            Dim btApp, btFormat, btPrintSetup
+            Dim btwPath, printerName, recordRange
+            btwPath = WScript.Arguments(0)
+            printerName = WScript.Arguments(1)
+            recordRange = WScript.Arguments(2)
+
             On Error Resume Next
             Set btApp = CreateObject("BarTender.Application")
             If Err.Number <> 0 Then
               WScript.StdErr.WriteLine "CREATE_COM: " & Err.Description
               WScript.Quit 2
             End If
+
             Err.Clear
             btApp.Visible = False
-            Set btMessages = Nothing
-            response = btApp.XMLScript(xmlPath, 1, btMessages)
+            Set btFormat = btApp.Formats.Open(btwPath, False, "")
             If Err.Number <> 0 Then
-              WScript.StdErr.WriteLine "XMLSCRIPT: " & Err.Description
+              WScript.StdErr.WriteLine "OPEN_FORMAT: " & Err.Description
               btApp.Quit 1
               WScript.Quit 3
             End If
+
+            Err.Clear
+            btFormat.RecordRange = recordRange
+            If Err.Number <> 0 Then
+              WScript.StdErr.WriteLine "RECORD_RANGE: " & Err.Description
+              btFormat.Close 1
+              btApp.Quit 1
+              WScript.Quit 4
+            End If
+
+            If Len(printerName) > 0 Then
+              Err.Clear
+              Set btPrintSetup = btFormat.PrintSetup
+              btPrintSetup.Printer = printerName
+              If Err.Number <> 0 Then
+                WScript.StdErr.WriteLine "PRINTER: " & Err.Description
+                btFormat.Close 1
+                btApp.Quit 1
+                WScript.Quit 5
+              End If
+            End If
+
+            Err.Clear
+            btFormat.PrintOut False, True
+            If Err.Number <> 0 Then
+              WScript.StdErr.WriteLine "PRINT_OUT: " & Err.Description
+              btFormat.Close 1
+              btApp.Quit 1
+              WScript.Quit 6
+            End If
+
+            btFormat.Close 1
             btApp.Quit 1
-            WScript.Echo response
+            WScript.Echo "OK range=" & recordRange
             """,
             new UTF8Encoding(false));
 
@@ -275,7 +318,9 @@ public class BarTenderService
         };
         startInfo.ArgumentList.Add("//NoLogo");
         startInfo.ArgumentList.Add(runnerPath);
-        startInfo.ArgumentList.Add(xmlPath);
+        startInfo.ArgumentList.Add(btwFile);
+        startInfo.ArgumentList.Add(printerName);
+        startInfo.ArgumentList.Add(recordRange);
 
         using Process? process = Process.Start(startInfo);
         if (process == null)
@@ -283,7 +328,7 @@ public class BarTenderService
 
         Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
         Task<string> errorTask = process.StandardError.ReadToEndAsync();
-        if (!process.WaitForExit(60000))
+        if (!process.WaitForExit(180000))
         {
             try
             {
