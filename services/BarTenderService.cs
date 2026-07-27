@@ -79,6 +79,19 @@ public class BarTenderService
                                $"/XMLScript=\"{xmlPath}\"";
             WritePrintLog("METHOD=BTXML10");
             WritePrintLog($"COMMAND exe={bartenderExe} args={arguments}");
+
+            if (databaseBatch)
+            {
+                stage = "Gửi lệnh qua BarTender Automation";
+                string response = RunXmlViaActiveX(xmlPath);
+                WritePrintLog($"ACTIVEX_RESPONSE {LimitLog(response)}");
+                if (ContainsBarTenderError(response))
+                    throw new Exception(
+                        "BarTender từ chối lệnh in.\n\n" + response);
+                WritePrintLog($"SUCCESS template={btwFile}");
+                return;
+            }
+
             ProcessStartInfo psi = new()
             {
                 FileName = bartenderExe,
@@ -217,6 +230,72 @@ public class BarTenderService
         }
 
         Thread.Sleep(500);
+    }
+
+    private static string RunXmlViaActiveX(string xmlPath)
+    {
+        string response = string.Empty;
+        Exception? failure = null;
+        using ManualResetEventSlim completed = new(false);
+
+        Thread automationThread = new(() =>
+        {
+            object? application = null;
+            try
+            {
+                Type? applicationType = Type.GetTypeFromProgID("BarTender.Application");
+                if (applicationType == null)
+                    throw new Exception(
+                        "Không tìm thấy BarTender Automation COM trên máy.");
+
+                application = Activator.CreateInstance(applicationType)
+                    ?? throw new Exception("Không thể khởi tạo BarTender Automation.");
+                dynamic barTender = application;
+                barTender.Visible = false;
+                object messages;
+                response = Convert.ToString(
+                    barTender.XMLScript(xmlPath, 1, out messages)) ?? string.Empty;
+                barTender.Quit(1);
+            }
+            catch (Exception ex)
+            {
+                failure = ex;
+                try
+                {
+                    if (application != null)
+                    {
+                        dynamic barTender = application;
+                        barTender.Quit(1);
+                    }
+                }
+                catch
+                {
+                }
+            }
+            finally
+            {
+                if (application != null && Marshal.IsComObject(application))
+                    Marshal.FinalReleaseComObject(application);
+                completed.Set();
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "BarTender Automation"
+        };
+        automationThread.SetApartmentState(ApartmentState.STA);
+        automationThread.Start();
+
+        if (!completed.Wait(TimeSpan.FromSeconds(60)))
+            throw new Exception(
+                "BarTender Automation không phản hồi sau 60 giây. " +
+                "Tiến trình ẩn sẽ được dọn ở lần in tiếp theo.");
+        if (failure != null)
+            throw new Exception(
+                "Không gọi được BarTender Automation.\n\n" + failure.Message,
+                failure);
+
+        return response;
     }
 
     private static string LimitLog(string value)
