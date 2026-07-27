@@ -30,30 +30,48 @@ public class ExcelService
         if (!string.IsNullOrWhiteSpace(folder))
             Directory.CreateDirectory(folder);
 
-        // File trung gian DIRECT_PRICE luôn chỉ có đúng 3 cột. Tạo workbook
-        // mới trong bộ nhớ để không cần đọc file cũ đang bị BarTender giữ.
-        using IWorkbook workbook = Path.GetExtension(targetFile)
-            .Equals(".xlsx", StringComparison.OrdinalIgnoreCase)
+        bool isNewFile = !File.Exists(targetFile);
+        using IWorkbook workbook = isNewFile
+            ? (Path.GetExtension(targetFile).Equals(".xlsx", StringComparison.OrdinalIgnoreCase)
                 ? new XSSFWorkbook()
-                : new HSSFWorkbook();
-        ISheet sheet = workbook.CreateSheet("Data");
-        IRow header = sheet.CreateRow(0);
+                : new HSSFWorkbook())
+            : OpenOrCreateDataWorkbook(targetFile);
+        ISheet sheet = workbook.NumberOfSheets > 0
+            ? workbook.GetSheetAt(0)
+            : workbook.CreateSheet("Data");
+        ClearSheetData(sheet);
 
-        for (int column = 0; column < DirectPriceHeaders.Length; column++)
+        IRow header = sheet.GetRow(0) ?? sheet.CreateRow(0);
+        if (isNewFile || header.LastCellNum <= 0)
         {
-            header.CreateCell(column).SetCellValue(DirectPriceHeaders[column]);
-            sheet.SetColumnWidth(column, column == 0 ? 12000 : 5000);
+            for (int column = 0; column < DirectPriceHeaders.Length; column++)
+            {
+                header.CreateCell(column).SetCellValue(DirectPriceHeaders[column]);
+                sheet.SetColumnWidth(column, column == 0 ? 12000 : 5000);
+            }
         }
 
         if (product != null)
         {
+            int nameColumn = FindHeaderColumn(header,
+                "Tên hàng", "Hàng hóa", "Tên sản phẩm", "Tên hàng thuộc tính");
+            int priceColumn = FindHeaderColumn(header, "Giá bán", "Giá");
+            int unitColumn = FindHeaderColumn(header,
+                "Đơn vị tính", "ĐVT", "Đơn vị");
+
+            // File mẫu cũ có thể dùng tiêu đề riêng. Nếu không nhận diện được,
+            // giữ nguyên header và dùng đúng vị trí ba cột đầu như file gốc.
+            nameColumn = nameColumn >= 0 ? nameColumn : 0;
+            priceColumn = priceColumn >= 0 ? priceColumn : 1;
+            unitColumn = unitColumn >= 0 ? unitColumn : 2;
+
             IRow row = sheet.CreateRow(1);
             string displayName = string.IsNullOrWhiteSpace(product.ProductNameWithAttr)
                 ? product.ProductName
                 : product.ProductNameWithAttr;
-            row.CreateCell(0).SetCellValue(displayName);
-            row.CreateCell(1).SetCellValue(product.Price);
-            row.CreateCell(2).SetCellValue(product.Unit);
+            row.CreateCell(nameColumn).SetCellValue(displayName);
+            row.CreateCell(priceColumn).SetCellValue(product.Price);
+            row.CreateCell(unitColumn).SetCellValue(product.Unit);
         }
 
         using FileStream output = OpenDataFileWithRetry(targetFile);
@@ -74,6 +92,20 @@ public class ExcelService
             source.CopyTo(memory);
         memory.Position = 0;
         return WorkbookFactory.Create(memory);
+    }
+
+    private static int FindHeaderColumn(IRow header, params string[] aliases)
+    {
+        HashSet<string> normalizedAliases = aliases
+            .Select(NormalizeHeader)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        for (int index = Math.Max(0, header.FirstCellNum); index < header.LastCellNum; index++)
+        {
+            string value = NormalizeHeader(GetCellString(header, index));
+            if (normalizedAliases.Contains(value))
+                return index;
+        }
+        return -1;
     }
 
     private static FileStream OpenDataFileWithRetry(string path, int maxAttempts = 120, int delayMs = 250)
