@@ -142,6 +142,10 @@ public class FormPreview : Form
         if (cQuantity != null)
             cQuantity.HeaderText = "Số lượng";
 
+        var cUnit = dgvPreview.Columns["Unit"];
+        if (cUnit != null)
+            cUnit.HeaderText = "Đơn vị tính";
+
         var cPrice = dgvPreview.Columns["Price"];
         if (cPrice != null)
             cPrice.HeaderText = "Giá";
@@ -172,6 +176,9 @@ public class FormPreview : Form
 
         if (cQuantity != null)
             cQuantity.FillWeight = 70;
+
+        if (cUnit != null)
+            cUnit.FillWeight = 70;
 
         if (cPrice != null)
             cPrice.FillWeight = 90;

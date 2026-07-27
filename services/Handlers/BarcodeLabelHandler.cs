@@ -36,6 +36,7 @@ public class BarcodeLabelHandler : ILabelHandler
                 ProductCode = item.ProductCode,
                 ProductName = item.ProductName,
                 ProductNameWithAttr = item.ProductNameWithAttr,
+                Unit = item.Unit,
                 ParsedBarcodeCode = parsed.BarcodeCode,
                 FinalBarcodeCode = finalCode,
                 Quantity = item.Quantity,

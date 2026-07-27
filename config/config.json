@@ -1,6 +1,7 @@
 {
-  "BarTenderExe": "C:\\Program Files\\Seagull Scientific\\BarTender Suite\\bartend.exe",
+  "BarTenderExe": "",
   "LastFolder": "",
+  "LastExcelFile": "",
   "AutoOpenLastFolder": true,
   "RememberEmployee": true,
   "DefaultEmployee": "",
@@ -8,11 +9,11 @@
     {
       "Code": "FULL",
       "Name": "Tem đầy đủ",
-      "Description": "Tên + thuộc tính + mã vạch + giá",
-      "IconText": "🧾",
+      "Description": "Tên hàng, thuộc tính, mã vạch và giá",
+      "IconText": "🏷",
       "IsEnabled": true,
-      "TemplatePath": "D:\\In Tem\\IN SP KOV\\3 TEM.btw",
-      "DataFilePath": "D:\\In Tem\\IN SP KOV\\dataa 3 tem.xls",
+      "TemplatePath": "",
+      "DataFilePath": "",
       "HandlerType": "FULL",
       "RequiresEmployeeCode": false,
       "UseBarcodeParser": false,
@@ -22,31 +23,16 @@
     {
       "Code": "BARCODE",
       "Name": "Tem mã vạch",
-      "Description": "Mã parser + mã nhân viên",
-      "IconText": "🏷",
+      "Description": "Mã barcode và mã nhân viên",
+      "IconText": "▥",
       "IsEnabled": true,
-      "TemplatePath": "D:\\In Tem\\In tem ma vach\\3 TEM MÃ VẠCH.btw",
-      "DataFilePath": "D:\\In Tem\\In tem ma vach\\dataa tem ma vach.xls",
+      "TemplatePath": "",
+      "DataFilePath": "",
       "HandlerType": "BARCODE",
       "RequiresEmployeeCode": true,
       "UseBarcodeParser": true,
       "AppendEmployeeCode": true,
       "TargetNameColumnIndex": 5
-    },
-    {
-  "Code": "TEM_KINH",
-  "Name": "Tem kính",
-  "Description": "Tem kính + block info mã hàng / mã vạch động",
-  "IconText": "🕶",
-  "IsEnabled": true,
-  "TemplatePath": "D:\\In Tem\\Tem Kinh\\TEM KINH.btw",
-  "DataFilePath": "D:\\In Tem\\Tem Kinh\\data tem kinh.xls",
-  "HandlerType": "GLASSES",
-  "RequiresEmployeeCode": false,
-  "UseBarcodeParser": false,
-  "AppendEmployeeCode": false,
-  "TargetNameColumnIndex": 5
-  }
-    
+    }
   ]
 }

@@ -24,6 +24,7 @@ public class FullLabelHandler : ILabelHandler
                 ProductCode = item.ProductCode,
                 ProductName = item.ProductName,
                 ProductNameWithAttr = item.ProductNameWithAttr,
+                Unit = item.Unit,
                 ParsedBarcodeCode = item.ProductCode,
                 FinalBarcodeCode = item.ProductCode,
                 Quantity = item.Quantity,

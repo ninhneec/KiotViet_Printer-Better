@@ -8,7 +8,7 @@ public class GenericLabelHandler : ILabelHandler
     private readonly ExcelService _excelService = new();
     private readonly BarTenderService _barTenderService = new();
 
-    public string HandlerType => "FULL";
+    public string HandlerType => "GENERIC";
 
     public List<PreviewRow> BuildPreview(
         List<ProductRow> products,
@@ -24,6 +24,7 @@ public class GenericLabelHandler : ILabelHandler
                 ProductCode = item.ProductCode,
                 ProductName = item.ProductName,
                 ProductNameWithAttr = item.ProductNameWithAttr,
+                Unit = item.Unit,
                 ParsedBarcodeCode = item.ProductCode,
                 FinalBarcodeCode = item.ProductCode,
                 Quantity = item.Quantity,

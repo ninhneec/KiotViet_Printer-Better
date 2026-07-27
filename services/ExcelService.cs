@@ -1,5 +1,7 @@
 using NPOI.SS.UserModel;
 using KiotVietLabelPrinter.Models;
+using System.Globalization;
+using System.Text;
 
 namespace KiotVietLabelPrinter.Services;
 
@@ -15,20 +17,35 @@ public class ExcelService
         ISheet sheet = workbook.GetSheetAt(0);
 
         List<ProductRow> products = new();
+        IRow? header = sheet.GetRow(sheet.FirstRowNum);
 
-        for (int i = 1; i <= sheet.LastRowNum; i++)
+        if (header == null)
+            throw new Exception("File Excel không có hàng tiêu đề.");
+
+        Dictionary<string, int> columns = BuildColumnMap(header);
+        int productCodeColumn = RequireColumn(columns, "Mã hàng");
+        int barcodeColumn = FindColumn(columns, "Mã vạch");
+        int productNameColumn = RequireColumn(columns, "Tên hàng");
+        int productNameWithAttrColumn = FindColumn(columns, "Tên hàng thuộc tính");
+        int unitColumn = FindColumn(columns, "Đơn vị tính");
+        int quantityColumn = FindColumn(columns, "Số lượng");
+        int priceColumn = FindColumn(columns, "Giá bán");
+        int descriptionColumn = FindColumn(columns, "Mô tả");
+
+        for (int i = sheet.FirstRowNum + 1; i <= sheet.LastRowNum; i++)
         {
             IRow? row = sheet.GetRow(i);
             if (row == null)
                 continue;
 
-            string productCode = GetCellString(row, 2);         // C - Mã hàng
-            string barcode = GetCellString(row, 3);             // D - Mã vạch
-            string productName = GetCellString(row, 4);         // E - Tên hàng
-            string productNameWithAttr = GetCellString(row, 5); // F - Tên hàng (thuộc tính)
-            double quantity = GetCellDouble(row, 7);            // H - Số lượng
-            double price = GetCellDouble(row, 8);               // I - Giá bán
-            string description = GetCellString(row, 9);         // J - Mô tả
+            string productCode = GetCellString(row, productCodeColumn);
+            string barcode = GetCellString(row, barcodeColumn);
+            string productName = GetCellString(row, productNameColumn);
+            string productNameWithAttr = GetCellString(row, productNameWithAttrColumn);
+            string unit = GetCellString(row, unitColumn);
+            double quantity = GetCellDouble(row, quantityColumn);
+            double price = GetCellDouble(row, priceColumn);
+            string description = GetCellString(row, descriptionColumn);
 
             if (string.IsNullOrWhiteSpace(productCode) &&
                 string.IsNullOrWhiteSpace(productName) &&
@@ -43,6 +60,7 @@ public class ExcelService
                 Barcode = barcode,
                 ProductName = productName,
                 ProductNameWithAttr = productNameWithAttr,
+                Unit = unit,
                 Quantity = quantity <= 0 ? 1 : quantity,
                 Price = price,
                 Description = description
@@ -50,6 +68,57 @@ public class ExcelService
         }
 
         return products;
+    }
+
+    private static Dictionary<string, int> BuildColumnMap(IRow header)
+    {
+        Dictionary<string, int> result = new(StringComparer.OrdinalIgnoreCase);
+
+        for (int index = header.FirstCellNum; index < header.LastCellNum; index++)
+        {
+            if (index < 0) continue;
+            string name = NormalizeHeader(GetCellString(header, index));
+            if (!string.IsNullOrWhiteSpace(name) && !result.ContainsKey(name))
+                result[name] = index;
+        }
+
+        return result;
+    }
+
+    private static int RequireColumn(Dictionary<string, int> columns, string name)
+    {
+        int index = FindColumn(columns, name);
+        if (index >= 0) return index;
+
+        throw new Exception(
+            $"File Excel thiếu cột “{name}”.\n\n" +
+            "Hãy xuất lại file Bảng giá sản phẩm từ KiotViet.");
+    }
+
+    private static int FindColumn(Dictionary<string, int> columns, string name)
+    {
+        return columns.TryGetValue(NormalizeHeader(name), out int index) ? index : -1;
+    }
+
+    private static string NormalizeHeader(string value)
+    {
+        string decomposed = (value ?? string.Empty)
+            .Trim()
+            .ToLowerInvariant()
+            .Normalize(NormalizationForm.FormD);
+
+        StringBuilder result = new();
+        foreach (char character in decomposed)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
+                result.Append(character == 'đ' ? 'd' : character);
+        }
+
+        return string.Join(" ", result.ToString()
+            .Normalize(NormalizationForm.FormC)
+            .Replace("(", " ")
+            .Replace(")", " ")
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries));
     }
 
     /// <summary>
@@ -233,11 +302,13 @@ public class ExcelService
 
     private static string GetCellString(IRow row, int index)
     {
+        if (index < 0) return "";
         return row.GetCell(index)?.ToString()?.Trim() ?? "";
     }
 
     private static double GetCellDouble(IRow row, int index)
     {
+        if (index < 0) return 0;
         ICell? cell = row.GetCell(index);
         if (cell == null) return 0;
 
