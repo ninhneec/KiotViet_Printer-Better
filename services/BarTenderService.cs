@@ -269,6 +269,9 @@ public class BarTenderService
         sb.AppendLine("""      <PrintSetup>""");
         if (!string.IsNullOrWhiteSpace(printerName))
             sb.AppendLine($"        <Printer>{EscapeXml(printerName)}</Printer>");
+        // Ghi đè setting "First Record Only" có thể đã được lưu trong .btw.
+        // Range lớn chỉ in đến record thực tế đang có trong file data.
+        sb.AppendLine("""        <RecordRange>1-999999</RecordRange>""");
         sb.AppendLine("""        <EnablePrompting>false</EnablePrompting>""");
         sb.AppendLine("""      </PrintSetup>""");
 

@@ -162,6 +162,8 @@ internal static class Program
                 "XML phải đóng tài liệu .btw sau job để nhả khóa file data.");
             Assert(templatePrinterContent.Contains("WaitForJobToComplete=\"true\""),
                 "XML phải chờ BarTender xử lý xong trước khi ghi sản phẩm tiếp theo.");
+            Assert(templatePrinterContent.Contains("<RecordRange>1-999999</RecordRange>"),
+                "XML phải ghi đè First Record Only và in toàn bộ record.");
             string overridePrinterXml = InvokeStatic<string>(
                 typeof(BarTenderService),
                 "CreatePrintXmlNearApp",
