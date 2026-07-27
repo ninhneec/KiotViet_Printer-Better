@@ -48,6 +48,9 @@ Chế độ này không cần chọn file data trung gian.
 Vào tab **Actions** → workflow **Build Windows app** → chọn lần chạy mới nhất →
 tải artifact `KiotViet-Printer-Better-win-x64`.
 
+Workflow cũng tạo bộ cài `KiotViet-Printer-Better-Setup.exe`. Khi đẩy tag bắt đầu bằng
+`v`, GitHub tự tạo Release gồm bản portable `.zip` và bộ cài `.exe`.
+
 ## Build trên máy lập trình
 
 ```powershell

@@ -1,15 +1,16 @@
 [Setup]
 AppId={{8E1A7C3D-2D91-4E37-8B54-123456789ABC}
-AppName=In Tem KiotViet
-AppVersion=1.0.1
-AppPublisher=Dung Store
+AppName=KiotViet Printer Better
+AppVersion=0.1.0
+AppPublisher=ninhneec
 
-DefaultDirName={userdesktop}\KiotViet Label Printer
-DefaultGroupName=In Tem KiotViet_V1
+DefaultDirName={localappdata}\Programs\KiotViet Printer Better
+DefaultGroupName=KiotViet Printer Better
 DisableProgramGroupPage=yes
+PrivilegesRequired=lowest
 
 OutputDir=installer_output
-OutputBaseFilename=InTemKiotViet_V1.2_Setup
+OutputBaseFilename=KiotViet-Printer-Better-Setup
 
 Compression=lzma
 SolidCompression=yes
@@ -23,14 +24,12 @@ RestartApplications=no
 ; Gỡ bản cũ theo cùng AppId trước khi cài bản mới
 UninstallDisplayIcon={app}\KiotViet Label Printer Pro V2.exe
 
-[Dirs]
-Name: "{userdesktop}\KiotViet Label Printer"
-
 [Files]
-Source: "publish\*"; DestDir: "{userdesktop}\KiotViet Label Printer"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{userdesktop}\In Tem KiotViet"; Filename: "{userdesktop}\KiotViet Label Printer\KiotViet Label Printer Pro V2.exe"; WorkingDir: "{userdesktop}\KiotViet Label Printer"
+Name: "{autoprograms}\KiotViet Printer Better"; Filename: "{app}\KiotViet Label Printer Pro V2.exe"; WorkingDir: "{app}"
+Name: "{autodesktop}\KiotViet Printer Better"; Filename: "{app}\KiotViet Label Printer Pro V2.exe"; WorkingDir: "{app}"
 
 [Run]
-Filename: "{userdesktop}\KiotViet Label Printer\KiotViet Label Printer Pro V2.exe"; Description: "Mở In Tem KiotViet"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\KiotViet Label Printer Pro V2.exe"; Description: "Mở KiotViet Printer Better"; Flags: nowait postinstall skipifsilent
