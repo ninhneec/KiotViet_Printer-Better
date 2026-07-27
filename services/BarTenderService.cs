@@ -60,11 +60,27 @@ public class BarTenderService
             WritePrintLog(
                 $"XML={xmlPath} printer={(string.IsNullOrWhiteSpace(printerName) ? "(trong file .btw)" : printerName)}");
 
+            bool databaseBatch = recordCount is > 0 &&
+                                 (namedSubStrings == null || namedSubStrings.Count == 0);
             bool hasRunningBarTender = Process.GetProcessesByName("bartend").Length > 0;
-            // BarTender yêu cầu /XMLScript là tham số CUỐI CÙNG. Nếu /X đứng sau,
-            // BarTender 10.x có thể trả ExitCode 0 nhưng không tạo job in.
-            string arguments = (hasRunningBarTender ? "" : "/X ") +
-                               $"/XMLScript=\"{xmlPath}\"";
+            string arguments;
+            if (databaseBatch)
+            {
+                // Chế độ tương thích BarTender 10.1. /RUN tạo instance riêng nên
+                // BarTender đang mở không thể nuốt lệnh. /FP ép bật database.
+                // /X chỉ đóng instance riêng sau khi lệnh in đã được xử lý.
+                arguments = $"/RUN /AF=\"{btwFile}\" ";
+                if (!string.IsNullOrWhiteSpace(printerName))
+                    arguments += $"/PRN=\"{printerName}\" ";
+                arguments += $"/RecordRange=1-{recordCount!.Value} /FP /X";
+            }
+            else
+            {
+                // BarTender yêu cầu /XMLScript là tham số CUỐI CÙNG.
+                arguments = (hasRunningBarTender ? "" : "/X ") +
+                            $"/XMLScript=\"{xmlPath}\"";
+            }
+            WritePrintLog($"METHOD={(databaseBatch ? "CLI10" : "BTXML")}");
             WritePrintLog($"COMMAND exe={bartenderExe} args={arguments}");
             ProcessStartInfo psi = new()
             {
